@@ -1,0 +1,6 @@
+{
+  "name": "Audio Editor",
+  "description": "A complete, production-quality, mobile-first audio editor web app with Web Audio API, multitrack timeline, effects, and export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
