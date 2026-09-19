@@ -18,7 +18,9 @@ import { ToolsPanel } from './components/panels/ToolsPanel';
 import { EffectsPanel } from './components/panels/EffectsPanel';
 import { ExportModal } from './components/panels/ExportModal';
 import { RecordModal } from './components/panels/RecordModal';
-import { Upload, Mic, Music, AlertCircle } from 'lucide-react';
+import { TimelineNavZoomBar } from './components/TimelineNavZoomBar';
+import { detectGaps, closeTrackGaps } from './audio/gapManager';
+import { Upload, Mic, Music, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_PROJECT: ProjectState = {
   id: 'proj_default',
@@ -69,6 +71,7 @@ export const App: React.FC = () => {
   // Status & Notifications
   const [isAutoSaved, setIsAutoSaved] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimerRef = useRef<any>(null);
@@ -431,9 +434,11 @@ export const App: React.FC = () => {
   };
 
   // EDIT OPERATION 3: DELETE selection or active clip
-  const handleDelete = () => {
+  const handleDelete = (ripple = false) => {
     const currentTrack = project.tracks.find((t) => t.id === selectedTrackId);
     if (!currentTrack) return;
+
+    let targetClips: AudioClip[] = [];
 
     if (selection) {
       const updatedClips: AudioClip[] = [];
@@ -491,22 +496,64 @@ export const App: React.FC = () => {
         }
       }
 
-      commitProjectState({
-        ...project,
-        tracks: project.tracks.map((t) => (t.id === currentTrack.id ? { ...t, clips: updatedClips } : t)),
-      });
+      targetClips = updatedClips;
       setSelection(null);
     } else if (selectedClip) {
       // Delete selected clip
-      commitProjectState({
-        ...project,
-        tracks: project.tracks.map((t) =>
-          t.id === currentTrack.id
-            ? { ...t, clips: t.clips.filter((c) => c.id !== selectedClip.id) }
-            : t
-        ),
-      });
+      targetClips = currentTrack.clips.filter((c) => c.id !== selectedClip.id);
     }
+
+    if (ripple && targetClips.length > 0) {
+      const tempTrack = { ...currentTrack, clips: targetClips };
+      const { newClips, gapsRemoved, timeSaved } = closeTrackGaps(tempTrack);
+      targetClips = newClips;
+      setSuccessMessage(`Part deleted & empty space removed (${timeSaved.toFixed(1)}s closed)`);
+    }
+
+    commitProjectState({
+      ...project,
+      tracks: project.tracks.map((t) => (t.id === currentTrack.id ? { ...t, clips: targetClips } : t)),
+    });
+  };
+
+  // 1-Click Close Gaps (Remove all empty spaces left behind by deleted parts)
+  const handleCloseGaps = (targetTrackId?: string) => {
+    const trackId = targetTrackId || selectedTrackId;
+    const track = project.tracks.find((t) => t.id === trackId);
+    if (!track || track.clips.length === 0) {
+      setErrorMessage('Is track par koi audio clips nahi hain.');
+      return;
+    }
+
+    const { newClips, gapsRemoved, timeSaved } = closeTrackGaps(track);
+    if (gapsRemoved === 0) {
+      setErrorMessage('Is track par koi khali jagah (gap) nahi mili.');
+      return;
+    }
+
+    const updatedTracks = project.tracks.map((t) =>
+      t.id === track.id ? { ...t, clips: newClips } : t
+    );
+
+    commitProjectState({
+      ...project,
+      tracks: updatedTracks,
+    });
+
+    setSuccessMessage(`${gapsRemoved} empty ${gapsRemoved === 1 ? 'space' : 'spaces'} removed (${timeSaved.toFixed(1)}s gap closed)!`);
+  };
+
+  // Step playhead forward or backward (Aghe / Peeche step buttons)
+  const handleStepTime = (deltaSeconds: number) => {
+    const newTime = Math.max(0, Math.min(totalDuration, currentTime + deltaSeconds));
+    handleSeek(newTime);
+  };
+
+  // Fit entire project into viewport width
+  const handleZoomFit = () => {
+    const availableWidth = window.innerWidth;
+    const fitZoom = Math.max(10, Math.min(300, Math.floor((availableWidth - 40) / Math.max(5, totalDuration))));
+    setZoom(fitZoom);
   };
 
   // EDIT OPERATION 4: COPY
@@ -588,9 +635,11 @@ export const App: React.FC = () => {
   };
 
   const hasClips = project.tracks.some((t) => t.clips.length > 0);
+  const activeTrack = project.tracks.find((t) => t.id === selectedTrackId);
+  const gapInfo = activeTrack ? detectGaps(activeTrack) : { gapsCount: 0, totalGapDuration: 0 };
 
   return (
-    <div className="flex flex-col h-screen w-screen max-w-md mx-auto bg-slate-950 text-slate-100 overflow-hidden font-sans border-x border-slate-900 shadow-2xl relative">
+    <div className="flex flex-col h-screen w-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans relative">
       {/* Hidden File Input for Native File Picker */}
       <input
         ref={fileInputRef}
@@ -609,6 +658,22 @@ export const App: React.FC = () => {
         onZoomOut={handleZoomOut}
         isAutoSaved={isAutoSaved}
       />
+
+      {/* Success Notification Toast */}
+      {successMessage && (
+        <div className="bg-emerald-950/90 border-b border-emerald-600/80 text-emerald-200 px-3 py-1.5 flex items-center justify-between text-xs z-40 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-1.5 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+          <button
+            onClick={() => setSuccessMessage('')}
+            className="text-emerald-400 hover:text-white px-2 py-0.5"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Error Message Toast */}
       {errorMessage && (
@@ -684,6 +749,20 @@ export const App: React.FC = () => {
         />
       </div>
 
+      {/* Navigation & Zoom Bar (Aghe/Peeche, Zoom Sliders & 1-Click Close Gaps) */}
+      <TimelineNavZoomBar
+        currentTime={currentTime}
+        totalDuration={totalDuration}
+        zoom={zoom}
+        onZoomChange={setZoom}
+        onZoomFit={handleZoomFit}
+        onSeek={handleSeek}
+        onStepTime={handleStepTime}
+        gapInfo={gapInfo}
+        onCloseGaps={() => handleCloseGaps()}
+        hasClips={hasClips}
+      />
+
       {/* Bottom Sticky Toolbar with 44px+ touch targets */}
       <BottomToolbar
         isPlaying={isPlaying}
@@ -696,7 +775,10 @@ export const App: React.FC = () => {
         onRedo={handleRedo}
         onSplit={handleSplit}
         onTrim={handleTrim}
-        onDelete={handleDelete}
+        onDelete={() => handleDelete(false)}
+        onRippleDelete={() => handleDelete(true)}
+        onCloseGaps={() => handleCloseGaps()}
+        gapsCount={gapInfo.gapsCount}
         onCopy={handleCopy}
         canPaste={clipboardClip !== null}
         onPaste={handlePaste}

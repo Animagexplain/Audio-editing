@@ -15,6 +15,7 @@ import {
   Download,
   Mic,
   FolderOpen,
+  FoldHorizontal,
 } from 'lucide-react';
 
 interface BottomToolbarProps {
@@ -29,6 +30,9 @@ interface BottomToolbarProps {
   onSplit: () => void;
   onTrim: () => void;
   onDelete: () => void;
+  onRippleDelete?: () => void;
+  onCloseGaps?: () => void;
+  gapsCount?: number;
   onCopy: () => void;
   canPaste: boolean;
   onPaste: () => void;
@@ -53,6 +57,9 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
   onSplit,
   onTrim,
   onDelete,
+  onRippleDelete,
+  onCloseGaps,
+  gapsCount = 0,
   onCopy,
   canPaste,
   onPaste,
@@ -116,12 +123,47 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
         <button
           onClick={onDelete}
           disabled={!hasSelection && !hasClips}
-          className="min-h-[44px] px-2.5 py-1.5 text-slate-200 disabled:text-slate-600 hover:bg-red-500/20 hover:text-red-300 rounded-lg active:scale-95 flex items-center gap-1.5 text-xs font-medium transition-colors"
-          title="Delete selected region or clip"
+          className="min-h-[44px] px-2 py-1.5 text-slate-200 disabled:text-slate-600 hover:bg-red-500/20 hover:text-red-300 rounded-lg active:scale-95 flex items-center gap-1 text-xs font-medium transition-colors"
+          title="Delete selected region or clip (leaves empty space)"
         >
           <Trash2 className="w-4 h-4 text-red-400" />
           <span>Del</span>
         </button>
+
+        {/* Ripple Delete (Deletes and automatically closes gap) */}
+        {onRippleDelete && (
+          <button
+            onClick={onRippleDelete}
+            disabled={!hasSelection && !hasClips}
+            className="min-h-[44px] px-2 py-1.5 text-amber-200 disabled:text-slate-600 hover:bg-amber-500/20 rounded-lg active:scale-95 flex items-center gap-1 text-xs font-medium transition-colors"
+            title="Ripple Delete: Deletes selection and closes the space automatically"
+          >
+            <FoldHorizontal className="w-4 h-4 text-amber-400" />
+            <span>Ripple Del</span>
+          </button>
+        )}
+
+        {/* Close Gaps (1-click compact all clips to remove spaces) */}
+        {onCloseGaps && (
+          <button
+            onClick={onCloseGaps}
+            disabled={!hasClips || gapsCount === 0}
+            className={`min-h-[44px] px-2.5 py-1.5 rounded-lg active:scale-95 flex items-center gap-1 text-xs font-medium transition-all ${
+              gapsCount > 0
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 shadow-sm'
+                : 'text-slate-500 hover:bg-slate-800 disabled:opacity-40'
+            }`}
+            title="1 Click mein khali spaces khatam karein (Close all gaps)"
+          >
+            <FoldHorizontal className="w-4 h-4" />
+            <span>Close Gaps</span>
+            {gapsCount > 0 && (
+              <span className="ml-0.5 px-1 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
+                {gapsCount}
+              </span>
+            )}
+          </button>
+        )}
 
         <div className="w-[1px] h-6 bg-slate-800 shrink-0" />
 

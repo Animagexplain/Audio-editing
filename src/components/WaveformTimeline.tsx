@@ -156,6 +156,19 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
     };
   }, [isDraggingLeftHandle, isDraggingRightHandle, selection, clientXToSeconds, timelineDuration, onSelectionChange]);
 
+  // Keep playhead within view when seeking or playing
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const playheadPx = currentTime * zoom;
+    const scrollLeft = el.scrollLeft;
+    const viewWidth = el.clientWidth;
+
+    if (playheadPx < scrollLeft || playheadPx > scrollLeft + viewWidth - 30) {
+      el.scrollLeft = Math.max(0, playheadPx - viewWidth / 3);
+    }
+  }, [currentTime, zoom]);
+
   // Format ruler time: mm:ss or mm:ss.ms
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
