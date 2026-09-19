@@ -71,7 +71,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
   };
 
   return (
-    <div className="bg-slate-900/95 border-t border-slate-800 px-2 py-1 flex items-center justify-between gap-1.5 select-none z-30 h-11 shrink-0 backdrop-blur-sm overflow-x-auto scrollbar-none">
+    <div
+      className="bg-slate-900/95 border-t border-slate-800 px-3 py-1 flex items-center justify-between gap-1.5 select-none z-30 min-h-[44px] shrink-0 backdrop-blur-sm overflow-x-auto scrollbar-none"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {/* SECTION 1: Editing Actions */}
       <div className="flex items-center gap-1 shrink-0">
         {/* Split */}

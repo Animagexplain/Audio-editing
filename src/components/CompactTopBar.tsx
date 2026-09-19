@@ -77,7 +77,10 @@ export const CompactTopBar: React.FC<CompactTopBarProps> = ({
   };
 
   return (
-    <header className="bg-slate-900/95 border-b border-slate-800 px-2 py-1 flex items-center justify-between select-none z-30 h-10 shrink-0 gap-1.5 backdrop-blur-sm">
+    <header
+      className="bg-slate-900/95 border-b border-slate-800 px-3 py-1 flex items-center justify-between select-none z-30 min-h-[40px] shrink-0 gap-1.5 backdrop-blur-sm"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       {/* LEFT SECTION: Brand & Tracks Management */}
       <div className="flex items-center gap-1.5 shrink-0">
         {/* Compact Logo */}
