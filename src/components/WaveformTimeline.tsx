@@ -220,14 +220,16 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
           </div>
 
           {/* Tracks Lanes Container */}
-          <div className="flex-1 flex flex-col divide-y divide-slate-800/60 relative pb-12">
+          <div className="flex-1 flex flex-col divide-y divide-slate-800/60 relative pb-2">
             {tracks.map((track, trackIndex) => {
               const isSelected = track.id === selectedTrackId;
               return (
                 <div
                   key={track.id}
                   onClick={() => onSelectTrack(track.id)}
-                  className={`relative h-28 flex items-center transition-colors ${
+                  className={`relative ${
+                    tracks.length === 1 ? 'flex-1 min-h-[140px]' : 'h-28'
+                  } flex items-center transition-colors ${
                     isSelected ? 'bg-slate-900/40' : 'bg-slate-950/40'
                   }`}
                 >
@@ -366,9 +368,10 @@ const ClipWaveformView: React.FC<ClipWaveformViewProps> = React.memo(
       const canvas = canvasRef.current;
       if (!canvas) return;
 
+      const containerHeight = Math.max(60, canvas.parentElement?.clientHeight || 110);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = clipWidthPx * dpr;
-      canvas.height = 100 * dpr;
+      canvas.height = containerHeight * dpr;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -382,7 +385,7 @@ const ClipWaveformView: React.FC<ClipWaveformViewProps> = React.memo(
         drawWaveformToCanvas(
           ctx,
           clipWidthPx,
-          100,
+          containerHeight,
           peaks,
           buffer.duration,
           clip.offsetInOriginal,

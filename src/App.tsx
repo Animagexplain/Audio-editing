@@ -10,15 +10,13 @@ import {
 import { AudioEngine } from './audio/AudioEngine';
 import { DEFAULT_EFFECTS } from './audio/EffectsGraph';
 import { saveProjectToStorage, loadLatestProjectFromStorage } from './storage/ProjectStorage';
-import { HeaderBar } from './components/HeaderBar';
+import { CompactTopBar } from './components/CompactTopBar';
 import { WaveformTimeline } from './components/WaveformTimeline';
-import { TrackControls } from './components/TrackControls';
-import { BottomToolbar } from './components/BottomToolbar';
+import { UnifiedBottomBar } from './components/UnifiedBottomBar';
 import { ToolsPanel } from './components/panels/ToolsPanel';
 import { EffectsPanel } from './components/panels/EffectsPanel';
 import { ExportModal } from './components/panels/ExportModal';
 import { RecordModal } from './components/panels/RecordModal';
-import { TimelineNavZoomBar } from './components/TimelineNavZoomBar';
 import { detectGaps, closeTrackGaps } from './audio/gapManager';
 import { Upload, Mic, Music, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -649,19 +647,35 @@ export const App: React.FC = () => {
         onChange={handleFileChange}
       />
 
-      {/* Top Header */}
-      <HeaderBar
+      {/* Compact Landscape Top Bar (38px height) */}
+      <CompactTopBar
+        tracks={project.tracks}
+        selectedTrackId={selectedTrackId}
+        onSelectTrack={handleSelectTrack}
+        onUpdateTrack={handleUpdateTrack}
+        onAddTrack={handleAddTrack}
+        onDeleteTrack={handleDeleteTrack}
         currentTime={currentTime}
         totalDuration={totalDuration}
-        zoom={zoom}
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
+        isPlaying={isPlaying}
+        onTogglePlay={handleTogglePlay}
+        isLooping={isLooping}
+        onToggleLoop={handleToggleLoop}
+        canUndo={historyPast.length > 0}
+        onUndo={handleUndo}
+        canRedo={historyFuture.length > 0}
+        onRedo={handleRedo}
+        onImportClick={() => fileInputRef.current?.click()}
+        onOpenRecord={() => setIsRecordOpen(true)}
+        onOpenTools={() => setIsToolsOpen(true)}
+        onOpenEffects={() => setIsEffectsOpen(true)}
+        onOpenExport={() => setIsExportOpen(true)}
         isAutoSaved={isAutoSaved}
       />
 
       {/* Success Notification Toast */}
       {successMessage && (
-        <div className="bg-emerald-950/90 border-b border-emerald-600/80 text-emerald-200 px-3 py-1.5 flex items-center justify-between text-xs z-40 animate-in fade-in slide-in-from-top-2">
+        <div className="bg-emerald-950/90 border-b border-emerald-600/80 text-emerald-200 px-3 py-1 flex items-center justify-between text-xs z-40 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-1.5 font-medium">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{successMessage}</span>
@@ -677,7 +691,7 @@ export const App: React.FC = () => {
 
       {/* Error Message Toast */}
       {errorMessage && (
-        <div className="bg-red-950/80 border-b border-red-800/80 text-red-300 px-3 py-2 flex items-center justify-between text-xs z-40">
+        <div className="bg-red-950/80 border-b border-red-800/80 text-red-300 px-3 py-1 flex items-center justify-between text-xs z-40">
           <div className="flex items-center gap-1.5">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{errorMessage}</span>
@@ -691,42 +705,32 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Multitrack Controls Header */}
-      <TrackControls
-        tracks={project.tracks}
-        selectedTrackId={selectedTrackId}
-        onSelectTrack={handleSelectTrack}
-        onUpdateTrack={handleUpdateTrack}
-        onAddTrack={handleAddTrack}
-        onDeleteTrack={handleDeleteTrack}
-      />
-
-      {/* Main Waveform Timeline Screen */}
+      {/* Main Waveform Timeline Screen (Maximizes all available screen height!) */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
         {!hasClips && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center space-y-4 bg-slate-950/80 pointer-events-none">
-            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-cyan-400 shadow-lg">
-              <Music className="w-8 h-8" />
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4 text-center space-y-3 bg-slate-950/80 pointer-events-none">
+            <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-cyan-400 shadow-lg">
+              <Music className="w-6 h-6" />
             </div>
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-200">No Audio Imported Yet</h2>
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-semibold text-slate-200">No Audio Imported Yet</h2>
               <p className="text-xs text-slate-400 max-w-xs">
-                Import an MP3, WAV, or M4A audio file, or record directly from your microphone to start editing.
+                Import an MP3, WAV, or M4A audio file, or record directly to start editing.
               </p>
             </div>
-            <div className="flex items-center gap-2 pt-2 pointer-events-auto">
+            <div className="flex items-center gap-2 pt-1 pointer-events-auto">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="min-h-[44px] px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                className="h-8 px-3 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
               >
-                <Upload className="w-4 h-4" />
+                <Upload className="w-3.5 h-3.5" />
                 Import Audio
               </button>
               <button
                 onClick={() => setIsRecordOpen(true)}
-                className="min-h-[44px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all"
+                className="h-8 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all"
               >
-                <Mic className="w-4 h-4 text-red-400" />
+                <Mic className="w-3.5 h-3.5 text-red-400" />
                 Record Mic
               </button>
             </div>
@@ -749,8 +753,19 @@ export const App: React.FC = () => {
         />
       </div>
 
-      {/* Navigation & Zoom Bar (Aghe/Peeche, Zoom Sliders & 1-Click Close Gaps) */}
-      <TimelineNavZoomBar
+      {/* Streamlined Landscape Bottom Bar (Editing Tools + Aghe/Peeche + Zoom Sliders in 1 Row) */}
+      <UnifiedBottomBar
+        onSplit={handleSplit}
+        onTrim={handleTrim}
+        onDelete={() => handleDelete(false)}
+        onRippleDelete={() => handleDelete(true)}
+        onCloseGaps={() => handleCloseGaps()}
+        gapInfo={gapInfo}
+        onCopy={handleCopy}
+        canPaste={clipboardClip !== null}
+        onPaste={handlePaste}
+        hasSelection={selection !== null}
+        hasClips={hasClips}
         currentTime={currentTime}
         totalDuration={totalDuration}
         zoom={zoom}
@@ -758,37 +773,6 @@ export const App: React.FC = () => {
         onZoomFit={handleZoomFit}
         onSeek={handleSeek}
         onStepTime={handleStepTime}
-        gapInfo={gapInfo}
-        onCloseGaps={() => handleCloseGaps()}
-        hasClips={hasClips}
-      />
-
-      {/* Bottom Sticky Toolbar with 44px+ touch targets */}
-      <BottomToolbar
-        isPlaying={isPlaying}
-        onTogglePlay={handleTogglePlay}
-        isLooping={isLooping}
-        onToggleLoop={handleToggleLoop}
-        canUndo={historyPast.length > 0}
-        onUndo={handleUndo}
-        canRedo={historyFuture.length > 0}
-        onRedo={handleRedo}
-        onSplit={handleSplit}
-        onTrim={handleTrim}
-        onDelete={() => handleDelete(false)}
-        onRippleDelete={() => handleDelete(true)}
-        onCloseGaps={() => handleCloseGaps()}
-        gapsCount={gapInfo.gapsCount}
-        onCopy={handleCopy}
-        canPaste={clipboardClip !== null}
-        onPaste={handlePaste}
-        onOpenTools={() => setIsToolsOpen(true)}
-        onOpenEffects={() => setIsEffectsOpen(true)}
-        onOpenExport={() => setIsExportOpen(true)}
-        onOpenRecord={() => setIsRecordOpen(true)}
-        onImportClick={() => fileInputRef.current?.click()}
-        hasSelection={selection !== null}
-        hasClips={hasClips}
       />
 
       {/* Bottom Sheet Panels */}
