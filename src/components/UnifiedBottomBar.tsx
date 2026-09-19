@@ -17,6 +17,8 @@ import {
   Play,
   Pause,
   Sparkles,
+  Gauge,
+  Check,
 } from 'lucide-react';
 import { GapInfo } from '../audio/gapManager';
 
@@ -28,6 +30,8 @@ interface UnifiedBottomBarProps {
   onRippleDelete: () => void;
   onCloseGaps: () => void;
   onAutoSilence?: () => void;
+  onNormalize3Db?: (all: boolean) => void;
+  onSelectAll?: () => void;
   gapInfo: GapInfo;
   onCopy: () => void;
   canPaste: boolean;
@@ -56,6 +60,8 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
   onRippleDelete,
   onCloseGaps,
   onAutoSilence,
+  onNormalize3Db,
+  onSelectAll,
   gapInfo,
   onCopy,
   canPaste,
@@ -162,6 +168,32 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
           >
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
             <span className="whitespace-nowrap">Auto Silence</span>
+          </button>
+        )}
+
+        {/* Normalize to -3dB */}
+        {onNormalize3Db && (
+          <button
+            onClick={() => onNormalize3Db(false)}
+            disabled={!hasClips}
+            className="h-8 px-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-cyan-500/25 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+            title="Normalize selected clip to -3dB for consistent loudness"
+          >
+            <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="whitespace-nowrap">Normalize -3dB</span>
+          </button>
+        )}
+
+        {/* Select All Clips */}
+        {onSelectAll && (
+          <button
+            onClick={onSelectAll}
+            disabled={!hasClips}
+            className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+            title="1 Click mein saari clips select karein"
+          >
+            <Check className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="whitespace-nowrap">Select All</span>
           </button>
         )}
 

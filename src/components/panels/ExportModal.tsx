@@ -4,9 +4,14 @@ import { Download, Share2, FileAudio, CheckCircle2, AlertCircle, Loader2 } from 
 import {
   ExportFormat,
   isM4aSupported,
+  isOggSupported,
+  isFlacSupported,
   renderProjectOffline,
   audioBufferToWav,
   audioBufferToMp3,
+  audioBufferToM4a,
+  audioBufferToOgg,
+  audioBufferToFlac,
   downloadBlob,
   shareAudioFile,
 } from '../../audio/AudioExporter';
@@ -39,6 +44,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   if (!isOpen) return null;
 
   const m4aAvailable = isM4aSupported();
+  const oggAvailable = isOggSupported();
+  const flacAvailable = isFlacSupported();
 
   const handleStartExport = async () => {
     setIsExporting(true);
@@ -71,8 +78,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           setProgress(0.5 + p * 0.45);
         });
         filename += '.mp3';
+      } else if (format === 'm4a') {
+        blob = await audioBufferToM4a(renderedBuffer, (p) => {
+          setProgress(0.5 + p * 0.45);
+        });
+        filename += '.m4a';
+      } else if (format === 'ogg') {
+        blob = await audioBufferToOgg(renderedBuffer, (p) => {
+          setProgress(0.5 + p * 0.45);
+        });
+        filename += '.ogg';
+      } else if (format === 'flac') {
+        blob = await audioBufferToFlac(renderedBuffer, (p) => {
+          setProgress(0.5 + p * 0.45);
+        });
+        filename += '.flac';
       } else {
-        // Fallback for m4a or wav
         blob = audioBufferToWav(renderedBuffer);
         filename += '.wav';
       }
@@ -123,10 +144,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         {/* Format Selector */}
         <div className="space-y-2">
           <label className="text-xs text-slate-300 font-medium">Output Format</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               onClick={() => setFormat('wav')}
-              className={`min-h-[44px] px-3 py-2 rounded-lg font-bold text-xs border transition-all ${
+              className={`min-h-[44px] px-2 py-2 rounded-lg font-bold text-xs border transition-all ${
                 format === 'wav'
                   ? 'bg-cyan-600/30 border-cyan-500 text-cyan-300'
                   : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -137,7 +158,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
             <button
               onClick={() => setFormat('mp3')}
-              className={`min-h-[44px] px-3 py-2 rounded-lg font-bold text-xs border transition-all ${
+              className={`min-h-[44px] px-2 py-2 rounded-lg font-bold text-xs border transition-all ${
                 format === 'mp3'
                   ? 'bg-cyan-600/30 border-cyan-500 text-cyan-300'
                   : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -146,28 +167,39 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               MP3 (192k)
             </button>
 
-            {m4aAvailable ? (
-              <button
-                onClick={() => setFormat('m4a')}
-                className={`min-h-[44px] px-3 py-2 rounded-lg font-bold text-xs border transition-all ${
-                  format === 'm4a'
-                    ? 'bg-cyan-600/30 border-cyan-500 text-cyan-300'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                M4A (AAC)
-              </button>
-            ) : null}
-          </div>
+            <button
+              onClick={() => setFormat('m4a')}
+              className={`min-h-[44px] px-2 py-2 rounded-lg font-bold text-xs border transition-all ${
+                format === 'm4a'
+                  ? 'bg-cyan-600/30 border-cyan-500 text-cyan-300'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              M4A (AAC)
+            </button>
 
-          {!m4aAvailable && (
-            <div className="flex items-start gap-1.5 p-2 bg-slate-950/60 border border-slate-800 rounded-lg text-[11px] text-slate-400">
-              <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-              <span>
-                M4A encoding is not natively supported by your browser's MediaRecorder engine; please export in high-quality MP3 or WAV.
-              </span>
-            </div>
-          )}
+            <button
+              onClick={() => setFormat('ogg')}
+              className={`min-h-[44px] px-2 py-2 rounded-lg font-bold text-xs border transition-all ${
+                format === 'ogg'
+                  ? 'bg-cyan-600/30 border-cyan-500 text-cyan-300'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              OGG (Opus)
+            </button>
+
+            <button
+              onClick={() => setFormat('flac')}
+              className={`min-h-[44px] px-2 py-2 rounded-lg font-bold text-xs border transition-all ${
+                format === 'flac'
+                  ? 'bg-cyan-600/30 border-cyan-500 text-cyan-300'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              FLAC (Lossless)
+            </button>
+          </div>
         </div>
 
         {/* Progress Bar & Status */}

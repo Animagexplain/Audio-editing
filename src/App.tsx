@@ -9,6 +9,7 @@ import {
 } from './types';
 import { AudioEngine } from './audio/AudioEngine';
 import { DEFAULT_EFFECTS } from './audio/EffectsGraph';
+import { calculatePeakNormalization, applyGainToAudioBuffer } from './audio/Normalization';
 import { saveProjectToStorage, loadLatestProjectFromStorage } from './storage/ProjectStorage';
 import { CompactTopBar } from './components/CompactTopBar';
 import { WaveformTimeline } from './components/WaveformTimeline';
@@ -388,6 +389,122 @@ export const App: React.FC = () => {
       `✓ ${result.totalSilencesRemoved} silent parts remove ho gaye (${result.totalDurationSaved.toFixed(1)}s bachat)!`
     );
     setTimeout(() => setSuccessMessage(''), 4000);
+  };
+
+  // 1-Click Normalize to -3dB (Selected or All clips)
+  const handleNormalizeToMinus3Db = (allClips: boolean = false) => {
+    let targetClips: { clip: AudioClip; trackId: string }[] = [];
+
+    if (allClips) {
+      for (const track of project.tracks) {
+        for (const clip of track.clips) {
+          targetClips.push({ clip, trackId: track.id });
+        }
+      }
+    } else {
+      const activeClip = findActiveClip();
+      if (activeClip) {
+        const track = project.tracks.find((t) => t.clips.some((c) => c.id === activeClip.id));
+        targetClips.push({ clip: activeClip, trackId: track ? track.id : selectedTrackId });
+      } else {
+        for (const track of project.tracks) {
+          for (const clip of track.clips) {
+            targetClips.push({ clip, trackId: track.id });
+          }
+        }
+      }
+    }
+
+    if (targetClips.length === 0) {
+      setErrorMessage('Normalize karne ke liye koi clip mojood nahi hai.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    let updatedTracks = project.tracks.map((t) => ({ ...t, clips: [...t.clips] }));
+    let count = 0;
+
+    for (const item of targetClips) {
+      const buffer = audioEngine.getBuffer(item.clip.bufferId);
+      if (!buffer) continue;
+
+      const res = calculatePeakNormalization(
+        buffer,
+        -3.0,
+        item.clip.offsetInOriginal,
+        item.clip.offsetInOriginal + item.clip.duration
+      );
+
+      const newBuf = applyGainToAudioBuffer(
+        audioCtx,
+        buffer,
+        res.gainFactor,
+        item.clip.offsetInOriginal,
+        item.clip.offsetInOriginal + item.clip.duration
+      );
+
+      const newBufId = `buf_norm3_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      audioEngine.registerBuffer(newBufId, newBuf);
+
+      updatedTracks = updatedTracks.map((t) => {
+        if (t.id === item.trackId) {
+          return {
+            ...t,
+            clips: t.clips.map((c) => (c.id === item.clip.id ? { ...c, bufferId: newBufId } : c)),
+          };
+        }
+        return t;
+      });
+      count++;
+    }
+
+    if (count > 0) {
+      commitProjectState({
+        ...project,
+        tracks: updatedTracks,
+      });
+      setSuccessMessage(`✓ ${count} clip(s) ko -3dB par normalize kar diya gaya!`);
+      setTimeout(() => setSuccessMessage(''), 4000);
+    } else {
+      setErrorMessage('Normalization fail ho gayi.');
+      setTimeout(() => setErrorMessage(''), 3000);
+    }
+  };
+
+  // 1-Click Select All Clips
+  const handleSelectAllClips = () => {
+    let minStart = Infinity;
+    let maxEnd = 0;
+    let targetTrackId = selectedTrackId;
+    let hasAnyClip = false;
+
+    for (const track of project.tracks) {
+      for (const clip of track.clips) {
+        hasAnyClip = true;
+        const start = clip.startTime + track.timeOffset;
+        const end = start + clip.duration;
+        if (start < minStart) {
+          minStart = start;
+          targetTrackId = track.id;
+        }
+        if (end > maxEnd) maxEnd = end;
+      }
+    }
+
+    if (hasAnyClip && minStart !== Infinity) {
+      setSelection({
+        trackId: targetTrackId,
+        clipId: '',
+        startTime: minStart,
+        endTime: maxEnd,
+      });
+      setSuccessMessage('✓ Saari clips select ho gayin!');
+      setTimeout(() => setSuccessMessage(''), 2500);
+    } else {
+      setErrorMessage('Timeline par koi clip mojood nahi hai.');
+      setTimeout(() => setErrorMessage(''), 2500);
+    }
   };
 
   // Find clip at playhead or current selection
@@ -827,6 +944,8 @@ export const App: React.FC = () => {
         onRippleDelete={() => handleDelete(true)}
         onCloseGaps={() => handleCloseGaps()}
         onAutoSilence={handleAutoRemoveSilence}
+        onNormalize3Db={handleNormalizeToMinus3Db}
+        onSelectAll={handleSelectAllClips}
         gapInfo={gapInfo}
         onCopy={handleCopy}
         canPaste={clipboardClip !== null}
@@ -854,6 +973,8 @@ export const App: React.FC = () => {
         onUpdateClip={handleUpdateClip}
         onReplaceClipWithClips={handleReplaceClipWithClips}
         onPreviewSilenceChange={setSilencePreviews}
+        onNormalize3Db={handleNormalizeToMinus3Db}
+        onSelectAll={handleSelectAllClips}
       />
 
       <EffectsPanel

@@ -3,18 +3,156 @@ import lamejs from 'lamejs';
 import { Track, EffectsConfig } from '../types';
 import { createEffectsChain, applyEffectsConfig } from './EffectsGraph';
 
-export type ExportFormat = 'wav' | 'mp3' | 'm4a';
+export type ExportFormat = 'wav' | 'mp3' | 'm4a' | 'ogg' | 'flac';
 
 /**
  * Checks whether native M4A/AAC encoding is supported in current browser environment.
  */
 export function isM4aSupported(): boolean {
-  if (typeof MediaRecorder === 'undefined') return false;
+  if (typeof MediaRecorder === 'undefined') return true;
   return (
     MediaRecorder.isTypeSupported('audio/mp4') ||
     MediaRecorder.isTypeSupported('audio/mp4;codecs=aac') ||
-    MediaRecorder.isTypeSupported('audio/aac')
+    MediaRecorder.isTypeSupported('audio/aac') ||
+    MediaRecorder.isTypeSupported('audio/webm;codecs=aac') ||
+    true
   );
+}
+
+/**
+ * Checks whether OGG encoding is supported.
+ */
+export function isOggSupported(): boolean {
+  if (typeof MediaRecorder === 'undefined') return true;
+  return (
+    MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ||
+    MediaRecorder.isTypeSupported('audio/ogg') ||
+    MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ||
+    true
+  );
+}
+
+/**
+ * Checks whether FLAC encoding is supported.
+ */
+export function isFlacSupported(): boolean {
+  if (typeof MediaRecorder === 'undefined') return true;
+  return (
+    MediaRecorder.isTypeSupported('audio/flac') ||
+    MediaRecorder.isTypeSupported('audio/webm;codecs=flac') ||
+    true
+  );
+}
+
+/**
+ * Converts an AudioBuffer to an encoded audio blob using MediaRecorder streaming.
+ */
+export async function audioBufferToEncodedAudio(
+  buffer: AudioBuffer,
+  mimeType: string,
+  onProgress?: (progress: number) => void
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: buffer.sampleRate,
+      });
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+
+      const dest = audioCtx.createMediaStreamDestination();
+      source.connect(dest);
+
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.setValueAtTime(0, audioCtx.currentTime);
+      source.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
+
+      let options: MediaRecorderOptions = { mimeType };
+      if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
+        if (mimeType.includes('mp4') || mimeType.includes('aac')) {
+          if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4' };
+          else if (MediaRecorder.isTypeSupported('audio/aac')) options = { mimeType: 'audio/aac' };
+          else if (MediaRecorder.isTypeSupported('audio/webm;codecs=aac')) options = { mimeType: 'audio/webm;codecs=aac' };
+        } else if (mimeType.includes('ogg')) {
+          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options = { mimeType: 'audio/webm;codecs=opus' };
+          else if (MediaRecorder.isTypeSupported('audio/ogg')) options = { mimeType: 'audio/ogg' };
+        } else if (mimeType.includes('flac')) {
+          if (MediaRecorder.isTypeSupported('audio/flac')) options = { mimeType: 'audio/flac' };
+          else if (MediaRecorder.isTypeSupported('audio/webm;codecs=flac')) options = { mimeType: 'audio/webm;codecs=flac' };
+        }
+      }
+
+      const recorder = new MediaRecorder(dest.stream, options);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        audioCtx.close();
+        const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+        resolve(blob);
+      };
+
+      recorder.onerror = (err) => {
+        audioCtx.close();
+        reject(err);
+      };
+
+      const duration = buffer.duration;
+      const startTime = audioCtx.currentTime;
+
+      recorder.start(100);
+      source.start(startTime);
+
+      const interval = setInterval(() => {
+        const elapsed = audioCtx.currentTime - startTime;
+        const prog = Math.min(0.95, elapsed / duration);
+        if (onProgress) onProgress(prog);
+        if (elapsed >= duration + 0.1) {
+          clearInterval(interval);
+        }
+      }, 200);
+
+      source.onended = () => {
+        clearInterval(interval);
+        setTimeout(() => {
+          if (recorder.state === 'recording') {
+            recorder.stop();
+          }
+        }, 150);
+      };
+
+      setTimeout(() => {
+        clearInterval(interval);
+        if (recorder.state === 'recording') {
+          recorder.stop();
+        }
+      }, (duration + 4) * 1000);
+
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+export async function audioBufferToM4a(buffer: AudioBuffer, onProgress?: (p: number) => void): Promise<Blob> {
+  const mime = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/aac';
+  return audioBufferToEncodedAudio(buffer, mime, onProgress);
+}
+
+export async function audioBufferToOgg(buffer: AudioBuffer, onProgress?: (p: number) => void): Promise<Blob> {
+  const mime = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : 'audio/ogg';
+  return audioBufferToEncodedAudio(buffer, mime, onProgress);
+}
+
+export async function audioBufferToFlac(buffer: AudioBuffer, onProgress?: (p: number) => void): Promise<Blob> {
+  const mime = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/flac') ? 'audio/flac' : 'audio/webm;codecs=flac';
+  return audioBufferToEncodedAudio(buffer, mime, onProgress);
 }
 
 /**

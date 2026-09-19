@@ -14,6 +14,8 @@ interface ToolsPanelProps {
   onUpdateClip: (updatedClip: AudioClip) => void;
   onReplaceClipWithClips: (oldClipId: string, newClips: AudioClip[]) => void;
   onPreviewSilenceChange: (regions: SilenceRegion[]) => void;
+  onNormalize3Db?: (all: boolean) => void;
+  onSelectAll?: () => void;
 }
 
 export const ToolsPanel: React.FC<ToolsPanelProps> = ({
@@ -25,6 +27,8 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
   onUpdateClip,
   onReplaceClipWithClips,
   onPreviewSilenceChange,
+  onNormalize3Db,
+  onSelectAll,
 }) => {
   // Volume & Gain
   const [gainDb, setGainDb] = useState<number>(0);
@@ -228,6 +232,59 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
               Please select an audio clip or region on the timeline to apply tools.
             </div>
           )}
+
+          {/* Select All Clips Button */}
+          {onSelectAll && (
+            <button
+              onClick={() => {
+                onSelectAll();
+                onClose();
+              }}
+              className="w-full min-h-[44px] px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl border border-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs"
+            >
+              <Check className="w-4 h-4 text-cyan-400" />
+              <span>Select All Clips (1-Click)</span>
+            </button>
+          )}
+
+          {/* Normalize to -3dB (Consistent Loudness Across Takes) */}
+          <div className="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                <Gauge className="w-4 h-4 text-cyan-400" />
+                Normalize to -3dB (Loudness Match)
+              </span>
+              <span className="text-[10px] bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800/60">
+                Consistent Takes
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Alag alag audio takes aur clips ki loudness ko -3dB peak par automatically normalize karein taake aawaz ek jaisi aur professional lage.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  onNormalize3Db && onNormalize3Db(false);
+                  onClose();
+                }}
+                disabled={!selectedClip}
+                className="min-h-[44px] px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-medium rounded-lg active:scale-95 transition-all flex items-center justify-center gap-1 text-xs"
+              >
+                <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Selected Clip</span>
+              </button>
+              <button
+                onClick={() => {
+                  onNormalize3Db && onNormalize3Db(true);
+                  onClose();
+                }}
+                className="min-h-[44px] px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg active:scale-95 transition-all flex items-center justify-center gap-1 text-xs shadow-md shadow-cyan-900/30"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>All Takes (-3dB)</span>
+              </button>
+            </div>
+          </div>
 
           {/* 1. Volume & Gain Adjustment */}
           <div className="space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
