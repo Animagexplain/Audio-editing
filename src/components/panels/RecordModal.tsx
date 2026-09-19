@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Circle, AlertCircle, Check, Loader2 } from 'lucide-react';
+import { Mic, Square, Circle, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { AudioRecorder } from '../../audio/AudioRecorder';
 
 interface RecordModalProps {
@@ -19,6 +19,8 @@ export const RecordModal: React.FC<RecordModalProps> = ({
   const [peakDb, setPeakDb] = useState(-60);
   const [errorMessage, setErrorMessage] = useState('');
   const [isDecoding, setIsDecoding] = useState(false);
+  const [recordedTakesCount, setRecordedTakesCount] = useState(0);
+  const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
 
   const recorderRef = useRef<AudioRecorder | null>(null);
   const timerRef = useRef<any>(null);
@@ -36,6 +38,7 @@ export const RecordModal: React.FC<RecordModalProps> = ({
 
   const handleStart = async () => {
     setErrorMessage('');
+    setLastSavedMessage(null);
     try {
       const recorder = new AudioRecorder((lvl, db) => {
         setLevel(lvl);
@@ -68,8 +71,16 @@ export const RecordModal: React.FC<RecordModalProps> = ({
 
     try {
       const result = await recorderRef.current.stop();
+      const currentTakeNum = recordedTakesCount + 1;
+      setRecordedTakesCount(currentTakeNum);
+
+      // Add to timeline sequentially without mixing
       onRecordingComplete(result.audioBuffer, result.blob, result.duration);
-      onClose();
+
+      // Keep user on the recording modal so they can record another take with 1 click
+      setLastSavedMessage(`Take ${currentTakeNum} timeline par save ho gaya (${result.duration.toFixed(1)}s)!`);
+      setLevel(0);
+      setPeakDb(-60);
     } catch (err: any) {
       setErrorMessage(`Failed to process recording: ${err.message}`);
     } finally {
@@ -94,16 +105,27 @@ export const RecordModal: React.FC<RecordModalProps> = ({
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <Mic className="w-5 h-5 text-red-400" />
-            <h3 className="font-semibold text-slate-100 text-sm">Microphone Recording</h3>
+            <h3 className="font-semibold text-slate-100 text-sm">
+              Audio Recording {recordedTakesCount > 0 && `(Take ${recordedTakesCount})`}
+            </h3>
           </div>
           <button
             onClick={onClose}
             disabled={isRecording || isDecoding}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white rounded-lg active:scale-95"
+            title="Close Recorder"
           >
             ✕
           </button>
         </div>
+
+        {/* Success / Last Saved Feedback */}
+        {lastSavedMessage && (
+          <div className="p-2.5 bg-emerald-950/60 border border-emerald-700/60 rounded-xl flex items-center gap-2 text-xs text-emerald-300 animate-in fade-in duration-150">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-medium">{lastSavedMessage}</span>
+          </div>
+        )}
 
         {/* Error Notification */}
         {errorMessage && (
@@ -119,7 +141,11 @@ export const RecordModal: React.FC<RecordModalProps> = ({
             {formatTimer(duration)}
           </div>
           <span className="text-[11px] text-slate-400 uppercase tracking-wider mt-1 block">
-            {isRecording ? 'Recording Live...' : 'Ready to record'}
+            {isRecording
+              ? 'Recording Live...'
+              : recordedTakesCount > 0
+              ? 'Agli recording ke liye niche click karein'
+              : 'Ready to record'}
           </span>
         </div>
 
@@ -155,11 +181,11 @@ export const RecordModal: React.FC<RecordModalProps> = ({
         </div>
 
         {/* Control Buttons */}
-        <div className="pt-2">
+        <div className="pt-2 space-y-2">
           {isDecoding ? (
-            <div className="flex items-center justify-center gap-2 py-3 text-cyan-300 text-xs font-medium">
+            <div className="flex items-center justify-center gap-2 py-3 text-cyan-300 text-xs font-medium bg-slate-800/50 rounded-xl">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Processing audio take...
+              Audio save ho rahi hai...
             </div>
           ) : isRecording ? (
             <button
@@ -167,16 +193,27 @@ export const RecordModal: React.FC<RecordModalProps> = ({
               className="w-full min-h-[48px] py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 text-xs shadow-lg shadow-red-900/30"
             >
               <Square className="w-4 h-4 fill-white" />
-              Stop & Insert into Track
+              Stop & Save Take (Timeline)
             </button>
           ) : (
-            <button
-              onClick={handleStart}
-              className="w-full min-h-[48px] py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 text-xs shadow-lg shadow-red-900/30"
-            >
-              <Circle className="w-4 h-4 fill-white" />
-              Start Recording
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleStart}
+                className="w-full min-h-[48px] py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 text-xs shadow-lg shadow-red-900/30"
+              >
+                <Circle className="w-4 h-4 fill-white" />
+                {recordedTakesCount > 0 ? 'Record Again (1-Click Next Take)' : 'Start Recording'}
+              </button>
+
+              {recordedTakesCount > 0 && (
+                <button
+                  onClick={onClose}
+                  className="w-full min-h-[40px] py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl active:scale-95 transition-all text-xs"
+                >
+                  Done Recording (Close)
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

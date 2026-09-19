@@ -18,6 +18,7 @@ import { EffectsPanel } from './components/panels/EffectsPanel';
 import { ExportModal } from './components/panels/ExportModal';
 import { RecordModal } from './components/panels/RecordModal';
 import { detectGaps, closeTrackGaps } from './audio/gapManager';
+import { autoRemoveSilenceFromTrack } from './audio/SilenceDetector';
 import { Upload, Mic, Music, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_PROJECT: ProjectState = {
@@ -163,12 +164,19 @@ export const App: React.FC = () => {
       audioEngine.pause();
     } else {
       await audioEngine.resume();
+      let startAt = currentTime;
+      // If at or past the end of the project, rewind to start cleanly
+      if (totalDuration > 0 && startAt >= totalDuration - 0.05) {
+        startAt = 0;
+        setCurrentTime(0);
+        audioEngine.seek(0);
+      }
       if (isLooping && selection && selection.endTime > selection.startTime) {
         audioEngine.setLoop(true, selection.startTime, selection.endTime);
         audioEngine.play(selection.startTime);
       } else {
         audioEngine.setLoop(isLooping, 0, totalDuration);
-        audioEngine.play(currentTime);
+        audioEngine.play(startAt);
       }
     }
   };
@@ -248,12 +256,17 @@ export const App: React.FC = () => {
       const { bufferId, audioBuffer } = await audioEngine.decodeAudioFile(file);
 
       const targetTrack = project.tracks.find((t) => t.id === selectedTrackId) || project.tracks[0];
+      
+      // Sequential placement: place right after existing clips so audio doesn't overlap
+      const trackEnd = targetTrack.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);
+      const clipStartTime = trackEnd;
+
       const newClip: AudioClip = {
         id: `clip_${Date.now()}`,
         trackId: targetTrack.id,
         bufferId,
         name: file.name.replace(/\.[^/.]+$/, ''),
-        startTime: currentTime,
+        startTime: clipStartTime,
         offsetInOriginal: 0,
         duration: audioBuffer.duration,
         volume: 1.0,
@@ -272,13 +285,20 @@ export const App: React.FC = () => {
         tracks: updatedTracks,
       });
 
+      const newEnd = clipStartTime + audioBuffer.duration;
+      setCurrentTime(newEnd);
+      audioEngine.seek(newEnd);
+
       // Select new clip range
       setSelection({
         trackId: targetTrack.id,
         clipId: newClip.id,
-        startTime: currentTime,
-        endTime: currentTime + audioBuffer.duration,
+        startTime: clipStartTime,
+        endTime: newEnd,
       });
+
+      setSuccessMessage(`✓ "${file.name}" import ho gayi!`);
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to import audio file.');
     } finally {
@@ -286,18 +306,24 @@ export const App: React.FC = () => {
     }
   };
 
-  // Recording Complete Handler
+  // Recording Complete Handler: Sequential Placement (No overlapping/mixing)
   const handleRecordingComplete = (audioBuffer: AudioBuffer, blob: Blob, duration: number) => {
-    const bufferId = `buf_rec_${Date.now()}`;
+    const bufferId = `buf_rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     audioEngine.registerBuffer(bufferId, audioBuffer);
 
     const targetTrack = project.tracks.find((t) => t.id === selectedTrackId) || project.tracks[0];
+    
+    // Sequential placement: calculate end of all existing clips on this track so takes NEVER mix/overlap
+    const trackEnd = targetTrack.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);
+    const clipStartTime = trackEnd;
+    const takeNumber = targetTrack.clips.length + 1;
+
     const newClip: AudioClip = {
-      id: `clip_rec_${Date.now()}`,
+      id: `clip_rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       trackId: targetTrack.id,
       bufferId,
-      name: `Take ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-      startTime: currentTime,
+      name: `Take ${takeNumber} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
+      startTime: clipStartTime,
       offsetInOriginal: 0,
       duration: duration,
       volume: 1.0,
@@ -316,12 +342,52 @@ export const App: React.FC = () => {
       tracks: updatedTracks,
     });
 
+    const newEnd = clipStartTime + duration;
+    setCurrentTime(newEnd);
+    audioEngine.seek(newEnd);
+
     setSelection({
       trackId: targetTrack.id,
       clipId: newClip.id,
-      startTime: currentTime,
-      endTime: currentTime + duration,
+      startTime: clipStartTime,
+      endTime: newEnd,
     });
+
+    setSuccessMessage(`✓ Take ${takeNumber} timeline pr sequential add ho gaya!`);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  // 1-Click Automatic Silence Removal across active clip or entire track
+  const handleAutoRemoveSilence = () => {
+    const targetTrack = project.tracks.find((t) => t.id === selectedTrackId) || project.tracks[0];
+    if (!targetTrack || targetTrack.clips.length === 0) {
+      setErrorMessage('Koi audio clip mojood nahi hai.');
+      return;
+    }
+
+    const activeClip = findActiveClip();
+    const result = autoRemoveSilenceFromTrack(
+      targetTrack,
+      (bufferId) => audioEngine.getBuffer(bufferId),
+      activeClip ? activeClip.id : undefined
+    );
+
+    if (result.totalSilencesRemoved === 0) {
+      setSuccessMessage('Audio bilkul saaf hai, koi inaudible silence nahi mila.');
+      setTimeout(() => setSuccessMessage(''), 4000);
+      return;
+    }
+
+    const updatedTracks = project.tracks.map((t) => (t.id === targetTrack.id ? result.updatedTrack : t));
+    commitProjectState({
+      ...project,
+      tracks: updatedTracks,
+    });
+
+    setSuccessMessage(
+      `✓ ${result.totalSilencesRemoved} silent parts remove ho gaye (${result.totalDurationSaved.toFixed(1)}s bachat)!`
+    );
+    setTimeout(() => setSuccessMessage(''), 4000);
   };
 
   // Find clip at playhead or current selection
@@ -760,12 +826,15 @@ export const App: React.FC = () => {
         onDelete={() => handleDelete(false)}
         onRippleDelete={() => handleDelete(true)}
         onCloseGaps={() => handleCloseGaps()}
+        onAutoSilence={handleAutoRemoveSilence}
         gapInfo={gapInfo}
         onCopy={handleCopy}
         canPaste={clipboardClip !== null}
         onPaste={handlePaste}
         hasSelection={selection !== null}
         hasClips={hasClips}
+        isPlaying={isPlaying}
+        onTogglePlay={handleTogglePlay}
         currentTime={currentTime}
         totalDuration={totalDuration}
         zoom={zoom}

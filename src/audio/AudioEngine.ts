@@ -51,19 +51,7 @@ export class AudioEngine {
       return this.startTimeOffset;
     }
     const elapsed = this.ctx.currentTime - this.playContextStartTime;
-    let current = this.startTimeOffset + elapsed;
-
-    if (this.isLooping && this.loopEnd > this.loopStart) {
-      const loopLen = this.loopEnd - this.loopStart;
-      if (current >= this.loopEnd) {
-        // Schedule next loop iteration
-        this.seek(this.loopStart);
-        this.play(this.loopStart);
-        return this.loopStart;
-      }
-    }
-
-    return current;
+    return this.startTimeOffset + elapsed;
   }
 
   getIsPlaying(): boolean {
@@ -149,7 +137,12 @@ export class AudioEngine {
       this.stopActiveSources();
     }
 
-    const startTime = startFromSec !== undefined ? Math.max(0, startFromSec) : this.startTimeOffset;
+    const totalDur = this.calculateProjectDuration();
+    let startTime = startFromSec !== undefined ? Math.max(0, startFromSec) : this.startTimeOffset;
+    if (totalDur > 0 && startTime >= totalDur - 0.05) {
+      startTime = 0;
+    }
+
     this.startTimeOffset = startTime;
     this.playContextStartTime = ctx.currentTime;
     this.isPlaying = true;
@@ -159,6 +152,9 @@ export class AudioEngine {
 
     if (this.onStateChangeCallback) {
       this.onStateChangeCallback(true);
+    }
+    if (this.onTimeUpdateCallback) {
+      this.onTimeUpdateCallback(startTime);
     }
 
     this.startTimeTicker();
@@ -194,7 +190,7 @@ export class AudioEngine {
   seek(timeSec: number) {
     const wasPlaying = this.isPlaying;
     if (wasPlaying) {
-      this.pause();
+      this.stopActiveSources();
     }
     this.startTimeOffset = Math.max(0, timeSec);
     if (this.onTimeUpdateCallback) {
@@ -331,10 +327,18 @@ export class AudioEngine {
         this.onTimeUpdateCallback(current);
       }
 
+      if (this.isLooping && this.loopEnd > this.loopStart && current >= this.loopEnd) {
+        this.seek(this.loopStart);
+        return;
+      }
+
       const totalDur = this.calculateProjectDuration();
       if (totalDur > 0 && current >= totalDur && !this.isLooping) {
         this.pause();
-        this.seek(0);
+        this.startTimeOffset = 0;
+        if (this.onTimeUpdateCallback) {
+          this.onTimeUpdateCallback(0);
+        }
         return;
       }
 

@@ -14,6 +14,9 @@ import {
   ZoomOut,
   Maximize2,
   MoveHorizontal,
+  Play,
+  Pause,
+  Sparkles,
 } from 'lucide-react';
 import { GapInfo } from '../audio/gapManager';
 
@@ -24,12 +27,17 @@ interface UnifiedBottomBarProps {
   onDelete: () => void;
   onRippleDelete: () => void;
   onCloseGaps: () => void;
+  onAutoSilence?: () => void;
   gapInfo: GapInfo;
   onCopy: () => void;
   canPaste: boolean;
   onPaste: () => void;
   hasSelection: boolean;
   hasClips: boolean;
+
+  // Playback Props
+  isPlaying?: boolean;
+  onTogglePlay?: () => void;
 
   // Navigation & Zoom Props
   currentTime: number;
@@ -47,12 +55,15 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
   onDelete,
   onRippleDelete,
   onCloseGaps,
+  onAutoSilence,
   gapInfo,
   onCopy,
   canPaste,
   onPaste,
   hasSelection,
   hasClips,
+  isPlaying = false,
+  onTogglePlay,
   currentTime,
   totalDuration,
   zoom,
@@ -141,6 +152,19 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
           )}
         </button>
 
+        {/* 1-Click Auto Silence Remover */}
+        {onAutoSilence && (
+          <button
+            onClick={onAutoSilence}
+            disabled={!hasClips}
+            className="h-8 px-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-cyan-500/25 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+            title="1-Click Auto Silence: Inaudible silence aur khali aawaz ko kudh remove karein"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="whitespace-nowrap">Auto Silence</span>
+          </button>
+        )}
+
         {/* Copy & Paste */}
         <button
           onClick={onCopy}
@@ -163,8 +187,29 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
       <div className="w-[1px] h-5 bg-slate-800 shrink-0" />
 
-      {/* SECTION 2: Aghe / Peeche Navigation Slider */}
-      <div className="flex-1 min-w-[200px] max-w-[340px] flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800 shrink-0">
+      {/* SECTION 2: Transport & Aghe / Peeche Navigation Slider */}
+      <div className="flex-1 min-w-[240px] max-w-[380px] flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800 shrink-0">
+        {/* Play / Pause Button in Bottom Bar */}
+        {onTogglePlay && (
+          <button
+            onClick={onTogglePlay}
+            disabled={!hasClips}
+            className={`h-7 px-2 rounded flex items-center gap-1 text-[11px] font-bold active:scale-95 transition-all shrink-0 ${
+              isPlaying
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm'
+                : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-sm disabled:opacity-40 disabled:text-slate-500 disabled:bg-slate-800'
+            }`}
+            title={isPlaying ? 'Pause Audio' : 'Play Audio'}
+          >
+            {isPlaying ? (
+              <Pause className="w-3 h-3 fill-slate-950" />
+            ) : (
+              <Play className="w-3 h-3 fill-slate-950" />
+            )}
+            <span>{isPlaying ? 'Pause' : 'Play'}</span>
+          </button>
+        )}
+
         <button
           onClick={() => onSeek(0)}
           className="h-7 w-6 text-slate-400 hover:text-white rounded active:scale-95 flex items-center justify-center shrink-0"

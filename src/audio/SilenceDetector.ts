@@ -1,4 +1,4 @@
-import { SilenceRegion, AudioClip } from '../types';
+import { SilenceRegion, AudioClip, Track } from '../types';
 
 /**
  * Detects silent intervals in an AudioBuffer based on threshold in dB and minDuration.
@@ -145,4 +145,105 @@ export function removeSilencesFromClip(
   }
 
   return newClips;
+}
+
+/**
+ * Automatically calculates the optimal threshold for inaudible sounds/silences
+ * (inaudible room noise, pauses between words) and detects all silent regions.
+ * Uses -40dB as the standard vocal threshold and 0.25s as the minimum pause duration.
+ */
+export function autoDetectInaudibleSilence(
+  buffer: AudioBuffer,
+  startSec: number = 0,
+  endSec?: number
+): { silences: SilenceRegion[]; thresholdDb: number } {
+  const thresholdDb = -40;
+  const minDurationSec = 0.25;
+  const silences = detectSilence(buffer, thresholdDb, minDurationSec, startSec, endSec);
+  return { silences, thresholdDb };
+}
+
+export interface AutoSilenceResult {
+  updatedTrack: Track;
+  totalSilencesRemoved: number;
+  totalDurationSaved: number;
+}
+
+/**
+ * 1-Click Auto Silence Remover:
+ * Automatically strips out inaudible silences and empty pauses from audio clips,
+ * seamlessly joining active voice parts together without requiring manual adjustments.
+ */
+export function autoRemoveSilenceFromTrack(
+  track: Track,
+  getBuffer: (bufferId: string) => AudioBuffer | undefined,
+  targetClipId?: string
+): AutoSilenceResult {
+  let totalSilencesRemoved = 0;
+  let totalDurationSaved = 0;
+  const newClips: AudioClip[] = [];
+
+  let runningStartTime = 0;
+
+  for (let cIdx = 0; cIdx < track.clips.length; cIdx++) {
+    const clip = track.clips[cIdx];
+    // If a specific clip is targeted, only process that clip
+    if (targetClipId && clip.id !== targetClipId) {
+      newClips.push({
+        ...clip,
+        startTime: runningStartTime,
+      });
+      runningStartTime += clip.duration;
+      continue;
+    }
+
+    const buffer = getBuffer(clip.bufferId);
+    if (!buffer) {
+      newClips.push({
+        ...clip,
+        startTime: runningStartTime,
+      });
+      runningStartTime += clip.duration;
+      continue;
+    }
+
+    const { silences } = autoDetectInaudibleSilence(
+      buffer,
+      clip.offsetInOriginal,
+      clip.offsetInOriginal + clip.duration
+    );
+
+    if (silences.length === 0) {
+      newClips.push({
+        ...clip,
+        startTime: runningStartTime,
+      });
+      runningStartTime += clip.duration;
+      continue;
+    }
+
+    const origDuration = clip.duration;
+    const splitClips = removeSilencesFromClip(clip, silences);
+
+    const newDuration = splitClips.reduce((sum, c) => sum + c.duration, 0);
+    totalSilencesRemoved += silences.length;
+    totalDurationSaved += Math.max(0, origDuration - newDuration);
+
+    for (const sc of splitClips) {
+      newClips.push({
+        ...sc,
+        startTime: runningStartTime,
+      });
+      runningStartTime += sc.duration;
+    }
+  }
+
+  return {
+    updatedTrack: {
+      ...track,
+      clips: newClips,
+    },
+    totalSilencesRemoved,
+    totalDurationSaved,
+  };
 }

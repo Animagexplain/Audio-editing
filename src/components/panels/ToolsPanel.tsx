@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AudioClip, TimelineSelection, SilenceRegion } from '../../types';
 import { Volume2, Sliders, Scissors, ArrowDownToDot, Gauge, Sparkles, Check } from 'lucide-react';
-import { detectSilence, removeSilencesFromClip } from '../../audio/SilenceDetector';
+import { detectSilence, removeSilencesFromClip, autoDetectInaudibleSilence } from '../../audio/SilenceDetector';
 import { processTimeStretch } from '../../audio/TimeStretch';
 import { AudioEngine } from '../../audio/AudioEngine';
 
@@ -143,6 +143,32 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
     setDetectedSilences(silences);
     setIsPreviewingSilence(true);
     onPreviewSilenceChange(timelineSilences);
+  };
+
+  // 1-Click Auto Silence Removal (No manual values needed)
+  const handleAutoRemoveSilencesOneClick = () => {
+    if (!selectedClip) return;
+    const buffer = audioEngine.getBuffer(selectedClip.bufferId);
+    if (!buffer) return;
+
+    const { silences } = autoDetectInaudibleSilence(
+      buffer,
+      selectedClip.offsetInOriginal,
+      selectedClip.offsetInOriginal + selectedClip.duration
+    );
+
+    if (silences.length === 0) {
+      alert('Audio bilkul saaf hai, koi inaudible silence nahi mila.');
+      return;
+    }
+
+    const newClips = removeSilencesFromClip(selectedClip, silences);
+    onReplaceClipWithClips(selectedClip.id, newClips);
+
+    setIsPreviewingSilence(false);
+    setDetectedSilences([]);
+    onPreviewSilenceChange([]);
+    onClose();
   };
 
   // Remove silences from clip
@@ -329,79 +355,107 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
             </div>
           </div>
 
-          {/* 4. Silence Remover with Preview */}
+          {/* 4. Silence Remover with 1-Click Auto and Optional Manual Fine-tuning */}
           <div className="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-              <Scissors className="w-4 h-4 text-cyan-400" />
-              Silence Remover
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                <Scissors className="w-4 h-4 text-cyan-400" />
+                Silence Remover
+              </span>
+              <span className="text-[10px] bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800/60">
+                1-Click Auto
+              </span>
+            </div>
 
-            {/* Threshold Slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-slate-400">
-                <span>Silence Threshold</span>
-                <span className="font-mono text-amber-400">{silenceThresholdDb} dB</span>
+            {/* 1-Click Primary Action Button */}
+            <button
+              onClick={handleAutoRemoveSilencesOneClick}
+              disabled={!selectedClip}
+              className="w-full min-h-[46px] px-3 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 disabled:opacity-40 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-md shadow-amber-900/30 text-xs"
+            >
+              <Sparkles className="w-4 h-4 text-amber-200" />
+              <span>1-Click Auto Remove Silence (Bina Kisi Setting Ke)</span>
+            </button>
+            <p className="text-[11px] text-slate-400 text-center">
+              Audio mein mojood inaudible silent parts aur khali aawaz ko kudh detect kar ke remove kar deta hai.
+            </p>
+
+            {/* Advanced Manual Settings (Optional) */}
+            <details className="group pt-1">
+              <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-200 font-medium list-none flex items-center justify-between select-none py-1 border-t border-slate-800">
+                <span>Advanced Manual Settings (Optional)</span>
+                <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+
+              <div className="space-y-2.5 pt-2">
+                {/* Threshold Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400">
+                    <span>Silence Threshold</span>
+                    <span className="font-mono text-amber-400">{silenceThresholdDb} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-60"
+                    max="-15"
+                    step="1"
+                    value={silenceThresholdDb}
+                    disabled={!selectedClip}
+                    onChange={(e) => {
+                      setSilenceThresholdDb(parseInt(e.target.value));
+                      if (isPreviewingSilence) setIsPreviewingSilence(false);
+                    }}
+                    className="w-full h-2 accent-amber-400 bg-slate-800 rounded cursor-pointer"
+                  />
+                </div>
+
+                {/* Minimum duration slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400">
+                    <span>Min Silence Duration</span>
+                    <span className="font-mono text-amber-400">{minSilenceDuration.toFixed(2)}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2.0"
+                    step="0.05"
+                    value={minSilenceDuration}
+                    disabled={!selectedClip}
+                    onChange={(e) => {
+                      setMinSilenceDuration(parseFloat(e.target.value));
+                      if (isPreviewingSilence) setIsPreviewingSilence(false);
+                    }}
+                    className="w-full h-2 accent-amber-400 bg-slate-800 rounded cursor-pointer"
+                  />
+                </div>
+
+                {/* Action buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={handleTogglePreviewSilence}
+                    disabled={!selectedClip}
+                    className={`min-h-[44px] px-3 py-2 rounded-lg font-medium border transition-colors flex items-center justify-center gap-1.5 ${
+                      isPreviewingSilence
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {isPreviewingSilence ? 'Hide Preview' : 'Preview Silences'}
+                  </button>
+
+                  <button
+                    onClick={handleRemoveSilences}
+                    disabled={!selectedClip}
+                    className="min-h-[44px] px-3 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-medium rounded-lg active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Scissors className="w-4 h-4" />
+                    Manual Remove
+                  </button>
+                </div>
               </div>
-              <input
-                type="range"
-                min="-60"
-                max="-15"
-                step="1"
-                value={silenceThresholdDb}
-                disabled={!selectedClip}
-                onChange={(e) => {
-                  setSilenceThresholdDb(parseInt(e.target.value));
-                  if (isPreviewingSilence) setIsPreviewingSilence(false);
-                }}
-                className="w-full h-2 accent-amber-400 bg-slate-800 rounded cursor-pointer"
-              />
-            </div>
-
-            {/* Minimum duration slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-slate-400">
-                <span>Min Silence Duration</span>
-                <span className="font-mono text-amber-400">{minSilenceDuration.toFixed(2)}s</span>
-              </div>
-              <input
-                type="range"
-                min="0.1"
-                max="2.0"
-                step="0.05"
-                value={minSilenceDuration}
-                disabled={!selectedClip}
-                onChange={(e) => {
-                  setMinSilenceDuration(parseFloat(e.target.value));
-                  if (isPreviewingSilence) setIsPreviewingSilence(false);
-                }}
-                className="w-full h-2 accent-amber-400 bg-slate-800 rounded cursor-pointer"
-              />
-            </div>
-
-            {/* Action buttons */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                onClick={handleTogglePreviewSilence}
-                disabled={!selectedClip}
-                className={`min-h-[44px] px-3 py-2 rounded-lg font-medium border transition-colors flex items-center justify-center gap-1.5 ${
-                  isPreviewingSilence
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                    : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                {isPreviewingSilence ? 'Hide Preview' : 'Preview Silences'}
-              </button>
-
-              <button
-                onClick={handleRemoveSilences}
-                disabled={!selectedClip}
-                className="min-h-[44px] px-3 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-medium rounded-lg active:scale-95 transition-all flex items-center justify-center gap-1.5"
-              >
-                <Scissors className="w-4 h-4" />
-                Remove Silences
-              </button>
-            </div>
+            </details>
           </div>
         </div>
       </div>
