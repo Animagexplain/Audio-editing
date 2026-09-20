@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { EffectsConfig, EQSettings, CompressorSettings, LimiterSettings, NoiseGateSettings, AudioClip } from '../../types';
-import { EQ_PRESETS } from '../../audio/EffectsGraph';
+import { EQ_PRESETS, COMPRESSOR_PRESETS, LIMITER_PRESETS, NOISE_GATE_PRESETS } from '../../audio/EffectsGraph';
 import { calculatePeakNormalization, calculateLoudnessNormalization, applyGainToAudioBuffer } from '../../audio/Normalization';
 import { AudioEngine } from '../../audio/AudioEngine';
-import { Activity, Sliders, ShieldAlert, Disc, Check, Sparkles } from 'lucide-react';
+import { Activity, Sliders, ShieldAlert, Disc, Check, Sparkles, RotateCcw } from 'lucide-react';
 
 interface EffectsPanelProps {
   isOpen: boolean;
@@ -45,6 +45,81 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
         ...preset,
       } as EQSettings,
     });
+  };
+
+  const handleApplyCompPreset = (presetName: string) => {
+    const preset = COMPRESSOR_PRESETS[presetName];
+    if (!preset) return;
+    onChangeEffects({
+      ...effects,
+      compressor: { ...effects.compressor, ...preset } as CompressorSettings,
+    });
+  };
+
+  const handleApplyLimiterPreset = (presetName: string) => {
+    const preset = LIMITER_PRESETS[presetName];
+    if (!preset) return;
+    onChangeEffects({
+      ...effects,
+      limiter: { ...effects.limiter, ...preset } as LimiterSettings,
+    });
+  };
+
+  const handleApplyGatePreset = (presetName: string) => {
+    const preset = NOISE_GATE_PRESETS[presetName];
+    if (!preset) return;
+    onChangeEffects({
+      ...effects,
+      noiseGate: { ...effects.noiseGate, ...preset } as NoiseGateSettings,
+    });
+  };
+
+  const handleResetEq = () => {
+    onChangeEffects({
+      ...effects,
+      eq: {
+        enabled: true,
+        preamp: 0,
+        band1: 0,
+        band2: 0,
+        band3: 0,
+        band4: 0,
+        band5: 0,
+        band6: 0,
+        band7: 0,
+        band8: 0,
+        band9: 0,
+        band10: 0,
+      },
+    });
+  };
+
+  const handleResetCompressor = () => {
+    onChangeEffects({
+      ...effects,
+      compressor: { enabled: false, threshold: -24, ratio: 4, attack: 0.01, release: 0.25, makeupGain: 0 },
+    });
+  };
+
+  const handleResetLimiter = () => {
+    onChangeEffects({
+      ...effects,
+      limiter: { enabled: true, ceiling: -0.5, release: 0.05 },
+    });
+  };
+
+  const handleResetNoiseGate = () => {
+    onChangeEffects({
+      ...effects,
+      noiseGate: { enabled: false, threshold: -50, attack: 0.01, release: 0.15 },
+    });
+  };
+
+  const handleResetNormalize = () => {
+    setNormMode('lufs');
+    setPeakTargetDb(-3.0);
+    setLufsTarget(-14);
+    setNormResultText('');
   };
 
   // Run Normalization
@@ -96,7 +171,7 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 overflow-x-auto scrollbar-none px-2 py-1.5 gap-1">
+        <div className="grid grid-cols-3 sm:flex border-b border-slate-800 bg-slate-950/60 p-2 gap-1.5">
           {[
             { id: 'eq', label: '5-Band EQ' },
             { id: 'comp', label: 'Compressor' },
@@ -107,7 +182,7 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              className={`min-h-[40px] px-2.5 py-1.5 rounded-lg text-xs font-medium text-center transition-all ${
                 activeTab === tab.id
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -124,29 +199,41 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
           {activeTab === 'eq' && (
             <div className="space-y-4">
               {/* Presets and Enable switch */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={effects.eq.enabled}
-                    onChange={(e) =>
-                      onChangeEffects({
-                        ...effects,
-                        eq: { ...effects.eq, enabled: e.target.checked },
-                      })
-                    }
-                    className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
-                  />
-                  <span className="font-semibold text-slate-200">Enable EQ</span>
-                </label>
+              <div className="flex flex-col gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={effects.eq.enabled}
+                      onChange={(e) =>
+                        onChangeEffects({
+                          ...effects,
+                          eq: { ...effects.eq, enabled: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-200">Enable EQ</span>
+                  </label>
+
+                  <button
+                    onClick={handleResetEq}
+                    className="h-7 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all flex items-center gap-1"
+                    title="Reset EQ to default"
+                  >
+                    <RotateCcw className="w-3 h-3 text-cyan-400" />
+                    <span>Reset EQ</span>
+                  </button>
+                </div>
 
                 {/* Presets */}
-                <div className="flex items-center gap-1">
-                  {['Flat', 'Voice Clear', 'Bass Boost'].map((preset) => (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1">
+                  <span className="text-[11px] text-slate-400 mr-1 shrink-0">Presets:</span>
+                  {Object.keys(EQ_PRESETS).map((preset) => (
                     <button
                       key={preset}
                       onClick={() => handleApplyPreset(preset)}
-                      className="min-h-[38px] px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-medium border border-slate-700 active:scale-95 transition-all"
+                      className="min-h-[36px] px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all shrink-0"
                     >
                       {preset}
                     </button>
@@ -154,44 +241,56 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
                 </div>
               </div>
 
-              {/* Low Cut Switch */}
-              <div className="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-lg border border-slate-800">
-                <div>
-                  <span className="font-medium text-slate-200">80Hz Low Cut Filter</span>
-                  <p className="text-[10px] text-slate-400">Cuts sub-bass rumble, plosives & mic handling noise</p>
+              {/* Pre amplifier slider */}
+              <div className="space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-200">Pre amplifier</span>
+                  <span className="font-mono text-cyan-300 font-bold">
+                    {(effects.eq.preamp ?? 0) > 0 ? `+${effects.eq.preamp}` : (effects.eq.preamp ?? 0)} dB
+                  </span>
                 </div>
-                <button
-                  onClick={() =>
+                <input
+                  type="range"
+                  min="-20"
+                  max="20"
+                  step="0.5"
+                  value={effects.eq.preamp ?? 0}
+                  onChange={(e) =>
                     onChangeEffects({
                       ...effects,
-                      eq: { ...effects.eq, lowCut: !effects.eq.lowCut },
+                      eq: {
+                        ...effects.eq,
+                        preamp: parseFloat(e.target.value),
+                      },
                     })
                   }
-                  className={`min-h-[44px] px-3 py-1 rounded font-bold border ${
-                    effects.eq.lowCut
-                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                      : 'bg-slate-800 border-slate-700 text-slate-400'
-                  }`}
-                >
-                  {effects.eq.lowCut ? 'ON' : 'OFF'}
-                </button>
+                  className="w-full h-2 accent-cyan-400 bg-slate-800 rounded cursor-pointer"
+                />
               </div>
 
-              {/* 5 Bands Frequencies */}
+              {/* 10-Band Graphic EQ Frequencies */}
               <div className="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="text-xs font-semibold text-slate-300 pb-1 border-b border-slate-800">
+                  10-Band Graphic Equalizer (-20dB to +20dB)
+                </div>
                 {[
-                  { key: 'band1', freq: '100 Hz (Low Shelf)', label: 'Bass' },
-                  { key: 'band2', freq: '350 Hz (Peaking)', label: 'Low Mid' },
-                  { key: 'band3', freq: '1,000 Hz (Peaking)', label: 'Mid' },
-                  { key: 'band4', freq: '3,500 Hz (Peaking)', label: 'Presence' },
-                  { key: 'band5', freq: '10,000 Hz (High Shelf)', label: 'Air / High' },
+                  { key: 'band1', freq: '32 Hz', label: 'Sub Bass' },
+                  { key: 'band2', freq: '62 Hz', label: 'Bass' },
+                  { key: 'band3', freq: '125 Hz', label: 'Low Mid' },
+                  { key: 'band4', freq: '250 Hz', label: 'Mid' },
+                  { key: 'band5', freq: '500 Hz', label: 'Upper Mid' },
+                  { key: 'band6', freq: '1,000 Hz', label: 'Presence' },
+                  { key: 'band7', freq: '2,000 Hz', label: 'High Mid' },
+                  { key: 'band8', freq: '4,000 Hz', label: 'Treble' },
+                  { key: 'band9', freq: '8,000 Hz', label: 'Brilliance' },
+                  { key: 'band10', freq: '16,000 Hz', label: 'Air' },
                 ].map((band) => {
                   const val = (effects.eq as any)[band.key] || 0;
                   return (
                     <div key={band.key} className="space-y-1">
                       <div className="flex justify-between">
                         <span className="text-slate-300 font-medium">
-                          {band.label} <span className="text-slate-400 text-[11px]">({band.freq})</span>
+                          {band.freq} <span className="text-slate-400 text-[10px]">({band.label})</span>
                         </span>
                         <span className="font-mono text-cyan-300 font-bold">
                           {val > 0 ? `+${val}` : val} dB
@@ -199,8 +298,8 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
                       </div>
                       <input
                         type="range"
-                        min="-12"
-                        max="12"
+                        min="-20"
+                        max="20"
                         step="0.5"
                         value={val}
                         onChange={(e) =>
@@ -224,20 +323,47 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
           {/* TAB 2: Compressor */}
           {activeTab === 'comp' && (
             <div className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={effects.compressor.enabled}
-                  onChange={(e) =>
-                    onChangeEffects({
-                      ...effects,
-                      compressor: { ...effects.compressor, enabled: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
-                />
-                <span className="font-semibold text-slate-200">Enable Compressor</span>
-              </label>
+              <div className="flex flex-col gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={effects.compressor.enabled}
+                      onChange={(e) =>
+                        onChangeEffects({
+                          ...effects,
+                          compressor: { ...effects.compressor, enabled: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-200">Enable Compressor</span>
+                  </label>
+
+                  <button
+                    onClick={handleResetCompressor}
+                    className="h-7 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all flex items-center gap-1"
+                    title="Reset Compressor to default"
+                  >
+                    <RotateCcw className="w-3 h-3 text-cyan-400" />
+                    <span>Reset Comp</span>
+                  </button>
+                </div>
+
+                {/* Presets */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1">
+                  <span className="text-[11px] text-slate-400 mr-1 shrink-0">Presets:</span>
+                  {Object.keys(COMPRESSOR_PRESETS).map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => handleApplyCompPreset(preset)}
+                      className="min-h-[36px] px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all shrink-0"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
                 {/* Threshold */}
@@ -360,20 +486,47 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
           {/* TAB 3: Limiter */}
           {activeTab === 'limiter' && (
             <div className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={effects.limiter.enabled}
-                  onChange={(e) =>
-                    onChangeEffects({
-                      ...effects,
-                      limiter: { ...effects.limiter, enabled: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
-                />
-                <span className="font-semibold text-slate-200">Enable Peak Limiter</span>
-              </label>
+              <div className="flex flex-col gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={effects.limiter.enabled}
+                      onChange={(e) =>
+                        onChangeEffects({
+                          ...effects,
+                          limiter: { ...effects.limiter, enabled: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-200">Enable Peak Limiter</span>
+                  </label>
+
+                  <button
+                    onClick={handleResetLimiter}
+                    className="h-7 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all flex items-center gap-1"
+                    title="Reset Limiter to default"
+                  >
+                    <RotateCcw className="w-3 h-3 text-cyan-400" />
+                    <span>Reset Limiter</span>
+                  </button>
+                </div>
+
+                {/* Presets */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1">
+                  <span className="text-[11px] text-slate-400 mr-1 shrink-0">Presets:</span>
+                  {Object.keys(LIMITER_PRESETS).map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => handleApplyLimiterPreset(preset)}
+                      className="min-h-[36px] px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all shrink-0"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="p-3 bg-cyan-950/30 border border-cyan-800/40 rounded-lg text-cyan-300 text-[11px]">
                 Implemented using a precision high-ratio DynamicsCompressorNode (20:1, 1ms fast attack) coupled with output ceiling headroom control to prevent inter-sample clipping on speakers and headphones.
@@ -432,20 +585,47 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
           {/* TAB 4: Noise Gate */}
           {activeTab === 'gate' && (
             <div className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={effects.noiseGate.enabled}
-                  onChange={(e) =>
-                    onChangeEffects({
-                      ...effects,
-                      noiseGate: { ...effects.noiseGate, enabled: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
-                />
-                <span className="font-semibold text-slate-200">Enable Noise Gate</span>
-              </label>
+              <div className="flex flex-col gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={effects.noiseGate.enabled}
+                      onChange={(e) =>
+                        onChangeEffects({
+                          ...effects,
+                          noiseGate: { ...effects.noiseGate, enabled: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-200">Enable Noise Gate</span>
+                  </label>
+
+                  <button
+                    onClick={handleResetNoiseGate}
+                    className="h-7 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all flex items-center gap-1"
+                    title="Reset Noise Gate to default"
+                  >
+                    <RotateCcw className="w-3 h-3 text-cyan-400" />
+                    <span>Reset Gate</span>
+                  </button>
+                </div>
+
+                {/* Presets */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1">
+                  <span className="text-[11px] text-slate-400 mr-1 shrink-0">Presets:</span>
+                  {Object.keys(NOISE_GATE_PRESETS).map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => handleApplyGatePreset(preset)}
+                      className="min-h-[36px] px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all shrink-0"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
                 {/* Threshold */}
@@ -525,7 +705,17 @@ export const EffectsPanel: React.FC<EffectsPanelProps> = ({
           {activeTab === 'normalize' && (
             <div className="space-y-4">
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
-                <span className="font-semibold text-slate-200">Normalization Mode</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">Normalization Mode</span>
+                  <button
+                    onClick={handleResetNormalize}
+                    className="h-7 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 active:scale-95 transition-all flex items-center gap-1"
+                    title="Reset Normalize settings to default"
+                  >
+                    <RotateCcw className="w-3 h-3 text-cyan-400" />
+                    <span>Reset Normalize</span>
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <button

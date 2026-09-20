@@ -26,12 +26,17 @@ export interface Track {
 
 export interface EQSettings {
   enabled: boolean;
-  lowCut: boolean; // 80Hz Highpass
-  band1: number; // 100Hz Low Shelf (-12..+12 dB)
-  band2: number; // 350Hz Peaking (-12..+12 dB)
-  band3: number; // 1000Hz Peaking (-12..+12 dB)
-  band4: number; // 3500Hz Peaking (-12..+12 dB)
-  band5: number; // 10000Hz High Shelf (-12..+12 dB)
+  preamp: number; // dB (-20..+20)
+  band1: number; // 32Hz (-20..+20 dB)
+  band2: number; // 62Hz
+  band3: number; // 125Hz
+  band4: number; // 250Hz
+  band5: number; // 500Hz
+  band6: number; // 1000Hz
+  band7: number; // 2000Hz
+  band8: number; // 4000Hz
+  band9: number; // 8000Hz
+  band10: number; // 16000Hz
 }
 
 export interface CompressorSettings {
