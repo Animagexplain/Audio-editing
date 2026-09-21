@@ -858,14 +858,20 @@ export const App: React.FC = () => {
 
       {/* Success Notification Toast */}
       {successMessage && (
-        <div className="bg-emerald-950/90 border-b border-emerald-600/80 text-emerald-200 px-3 py-1 flex items-center justify-between text-xs z-40 animate-in fade-in slide-in-from-top-2">
+        <div
+          className="bg-emerald-950/90 border-b border-emerald-600/80 text-emerald-200 px-3 py-1.5 flex items-center justify-between text-xs z-40 animate-in fade-in slide-in-from-top-2"
+          style={{
+            paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
+            paddingRight: 'max(18px, env(safe-area-inset-right, 18px))',
+          }}
+        >
           <div className="flex items-center gap-1.5 font-medium">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{successMessage}</span>
           </div>
           <button
             onClick={() => setSuccessMessage('')}
-            className="text-emerald-400 hover:text-white px-2 py-0.5"
+            className="text-emerald-400 hover:text-white px-2 py-0.5 rounded"
           >
             ✕
           </button>
@@ -874,14 +880,20 @@ export const App: React.FC = () => {
 
       {/* Error Message Toast */}
       {errorMessage && (
-        <div className="bg-red-950/80 border-b border-red-800/80 text-red-300 px-3 py-1 flex items-center justify-between text-xs z-40">
-          <div className="flex items-center gap-1.5">
+        <div
+          className="bg-red-950/80 border-b border-red-800/80 text-red-300 px-3 py-1.5 flex items-center justify-between text-xs z-40"
+          style={{
+            paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
+            paddingRight: 'max(18px, env(safe-area-inset-right, 18px))',
+          }}
+        >
+          <div className="flex items-center gap-1.5 font-medium">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{errorMessage}</span>
           </div>
           <button
             onClick={() => setErrorMessage('')}
-            className="text-red-400 hover:text-white px-2 py-1"
+            className="text-red-400 hover:text-white px-2 py-0.5 rounded"
           >
             ✕
           </button>

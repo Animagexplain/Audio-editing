@@ -89,8 +89,12 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
   return (
     <div
-      className="bg-slate-900/95 border-t border-slate-800 px-3 py-1 flex items-center justify-between gap-1.5 select-none z-30 min-h-[44px] shrink-0 backdrop-blur-sm overflow-x-auto scrollbar-none"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="bg-slate-900/95 border-t border-slate-800 px-2 sm:px-3 py-1 flex items-center justify-between gap-2 select-none z-30 min-h-[44px] shrink-0 backdrop-blur-sm overflow-x-auto scrollbar-none"
+      style={{
+        paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
+        paddingRight: 'max(20px, env(safe-area-inset-right, 20px))',
+      }}
     >
       {/* SECTION 1: Editing Actions */}
       <div className="flex items-center gap-1 shrink-0">
@@ -98,10 +102,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onSplit}
           disabled={!hasClips}
-          className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+          className="h-7 px-2 rounded-md bg-slate-950 border border-slate-800 text-slate-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
           title="Split clip at playhead"
         >
-          <Scissors className="w-3.5 h-3.5 text-cyan-400" />
+          <Scissors className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
           <span>Split</span>
         </button>
 
@@ -109,10 +113,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onTrim}
           disabled={!hasSelection}
-          className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+          className="h-7 px-2 rounded-md bg-slate-950 border border-slate-800 text-slate-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
           title="Trim (keep only selected region)"
         >
-          <Crop className="w-3.5 h-3.5 text-cyan-400" />
+          <Crop className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
           <span>Trim</span>
         </button>
 
@@ -120,10 +124,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onDelete}
           disabled={!hasSelection && !hasClips}
-          className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-red-500/20 hover:text-red-300 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+          className="h-7 px-2 rounded-md bg-slate-950 border border-slate-800 text-slate-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-red-500/20 hover:text-red-300 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
           title="Delete selected region or clip"
         >
-          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+          <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
           <span>Del</span>
         </button>
 
@@ -131,10 +135,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onRippleDelete}
           disabled={!hasSelection && !hasClips}
-          className="h-8 px-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-amber-500/25 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+          className="h-7 px-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-amber-500/25 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
           title="Ripple Delete: Deletes selection and closes empty space automatically"
         >
-          <FoldHorizontal className="w-3.5 h-3.5 text-amber-400" />
+          <FoldHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="whitespace-nowrap">Ripple Del</span>
         </button>
 
@@ -142,17 +146,17 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onCloseGaps}
           disabled={!hasClips || gapInfo.gapsCount === 0}
-          className={`h-8 px-2.5 rounded-lg active:scale-95 flex items-center gap-1.5 text-[11px] font-medium transition-all ${
+          className={`h-7 px-2.5 rounded-md active:scale-95 flex items-center justify-center gap-1.5 text-[11px] font-medium transition-all shrink-0 ${
             gapInfo.gapsCount > 0
               ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-500/30 animate-pulse'
               : 'bg-slate-950 border border-slate-800 text-slate-600 disabled:opacity-40'
           }`}
           title="1 Click mein khali jagah (empty space) khatam karein"
         >
-          <FoldHorizontal className="w-3.5 h-3.5" />
+          <FoldHorizontal className="w-3.5 h-3.5 shrink-0" />
           <span className="whitespace-nowrap">Close Gaps</span>
           {gapInfo.gapsCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-slate-950 text-amber-300 text-[10px] font-bold">
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 text-[10px] font-bold">
               {gapInfo.gapsCount}
             </span>
           )}
@@ -163,10 +167,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
           <button
             onClick={onAutoSilence}
             disabled={!hasClips}
-            className="h-8 px-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-cyan-500/25 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+            className="h-7 px-2 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-cyan-500/25 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
             title="1-Click Auto Silence: Inaudible silence aur khali aawaz ko kudh remove karein"
           >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="whitespace-nowrap">Auto Silence</span>
           </button>
         )}
@@ -176,10 +180,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
           <button
             onClick={() => onNormalize3Db(false)}
             disabled={!hasClips}
-            className="h-8 px-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-cyan-500/25 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+            className="h-7 px-2 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:text-slate-600 disabled:opacity-50 hover:bg-cyan-500/25 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
             title="Normalize selected clip to -3dB for consistent loudness"
           >
-            <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+            <Gauge className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="whitespace-nowrap">Normalize -3dB</span>
           </button>
         )}
@@ -189,10 +193,10 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
           <button
             onClick={onSelectAll}
             disabled={!hasClips}
-            className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center gap-1 text-[11px] font-medium transition-all"
+            className="h-7 px-2 rounded-md bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center justify-center gap-1 text-[11px] font-medium transition-all shrink-0"
             title="1 Click mein saari clips select karein"
           >
-            <Check className="w-3.5 h-3.5 text-cyan-400" />
+            <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="whitespace-nowrap">Select All</span>
           </button>
         )}
@@ -201,7 +205,7 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onCopy}
           disabled={!hasSelection && !hasClips}
-          className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center gap-1 text-[11px] transition-all"
+          className="h-7 w-7 rounded-md bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center justify-center text-[11px] transition-all shrink-0"
           title="Copy"
         >
           <Copy className="w-3.5 h-3.5" />
@@ -210,23 +214,23 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         <button
           onClick={onPaste}
           disabled={!canPaste}
-          className="h-8 px-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center gap-1 text-[11px] transition-all"
+          className="h-7 w-7 rounded-md bg-slate-950 border border-slate-800 text-slate-300 disabled:text-slate-600 disabled:opacity-50 hover:bg-slate-800 active:scale-95 flex items-center justify-center text-[11px] transition-all shrink-0"
           title="Paste"
         >
           <ClipboardPaste className="w-3.5 h-3.5 text-cyan-400" />
         </button>
       </div>
 
-      <div className="w-[1px] h-5 bg-slate-800 shrink-0" />
+      <div className="w-[1px] h-5 bg-slate-800 shrink-0 self-center" />
 
       {/* SECTION 2: Transport & Aghe / Peeche Navigation Slider */}
-      <div className="flex-1 min-w-[240px] max-w-[380px] flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800 shrink-0">
+      <div className="flex-1 min-w-[240px] max-w-[380px] h-8 flex items-center gap-1 bg-slate-950/80 px-2 rounded-md border border-slate-800 shrink-0">
         {/* Play / Pause Button in Bottom Bar */}
         {onTogglePlay && (
           <button
             onClick={onTogglePlay}
             disabled={!hasClips}
-            className={`h-7 px-2 rounded flex items-center gap-1 text-[11px] font-bold active:scale-95 transition-all shrink-0 ${
+            className={`h-6.5 px-2 rounded-md flex items-center justify-center gap-1 text-[11px] font-bold active:scale-95 transition-all shrink-0 ${
               isPlaying
                 ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm'
                 : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-sm disabled:opacity-40 disabled:text-slate-500 disabled:bg-slate-800'
@@ -234,17 +238,17 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
             title={isPlaying ? 'Pause Audio' : 'Play Audio'}
           >
             {isPlaying ? (
-              <Pause className="w-3 h-3 fill-slate-950" />
+              <Pause className="w-3 h-3 fill-slate-950 shrink-0" />
             ) : (
-              <Play className="w-3 h-3 fill-slate-950" />
+              <Play className="w-3 h-3 fill-slate-950 shrink-0" />
             )}
-            <span>{isPlaying ? 'Pause' : 'Play'}</span>
+            <span className="leading-none">{isPlaying ? 'Pause' : 'Play'}</span>
           </button>
         )}
 
         <button
           onClick={() => onSeek(0)}
-          className="h-7 w-6 text-slate-400 hover:text-white rounded active:scale-95 flex items-center justify-center shrink-0"
+          className="h-6.5 w-6 text-slate-400 hover:text-white rounded active:scale-95 flex items-center justify-center shrink-0"
           title="Jump to Start"
         >
           <ChevronsLeft className="w-3.5 h-3.5" />
@@ -252,7 +256,7 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
         <button
           onClick={() => onStepTime(-5)}
-          className="h-7 px-1 text-slate-300 hover:text-cyan-300 rounded active:scale-95 flex items-center text-[10px] font-mono shrink-0"
+          className="h-6.5 px-1 text-slate-300 hover:text-cyan-300 rounded active:scale-95 flex items-center justify-center text-[10px] font-mono shrink-0"
           title="Step back 5 seconds (-5s)"
         >
           <ChevronLeft className="w-3 h-3" />
@@ -260,7 +264,7 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
         </button>
 
         {/* Scrubber slider */}
-        <div className="flex-1 flex flex-col justify-center px-1">
+        <div className="flex-1 flex items-center px-1">
           <input
             type="range"
             min="0"
@@ -275,7 +279,7 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
         <button
           onClick={() => onStepTime(5)}
-          className="h-7 px-1 text-slate-300 hover:text-cyan-300 rounded active:scale-95 flex items-center text-[10px] font-mono shrink-0"
+          className="h-6.5 px-1 text-slate-300 hover:text-cyan-300 rounded active:scale-95 flex items-center justify-center text-[10px] font-mono shrink-0"
           title="Step forward 5 seconds (+5s)"
         >
           <span>+5s</span>
@@ -284,20 +288,20 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
         <button
           onClick={() => onSeek(totalDuration)}
-          className="h-7 w-6 text-slate-400 hover:text-white rounded active:scale-95 flex items-center justify-center shrink-0"
+          className="h-6.5 w-6 text-slate-400 hover:text-white rounded active:scale-95 flex items-center justify-center shrink-0"
           title="Jump to End"
         >
           <ChevronsRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      <div className="w-[1px] h-5 bg-slate-800 shrink-0" />
+      <div className="w-[1px] h-5 bg-slate-800 shrink-0 self-center" />
 
       {/* SECTION 3: Timeline Zoom Slider */}
-      <div className="flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800 shrink-0">
+      <div className="h-8 flex items-center gap-1 bg-slate-950/80 px-2 rounded-md border border-slate-800 shrink-0">
         <button
           onClick={() => onZoomChange(Math.max(10, zoom - 15))}
-          className="h-7 w-6 text-slate-400 hover:text-cyan-300 rounded active:scale-95 flex items-center justify-center text-xs font-bold shrink-0"
+          className="h-6.5 w-6 text-slate-400 hover:text-cyan-300 rounded active:scale-95 flex items-center justify-center text-xs font-bold shrink-0"
           title="Zoom Out"
         >
           <ZoomOut className="w-3.5 h-3.5" />
@@ -316,7 +320,7 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
         <button
           onClick={() => onZoomChange(Math.min(300, zoom + 15))}
-          className="h-7 w-6 text-slate-400 hover:text-cyan-300 rounded active:scale-95 flex items-center justify-center text-xs font-bold shrink-0"
+          className="h-6.5 w-6 text-slate-400 hover:text-cyan-300 rounded active:scale-95 flex items-center justify-center text-xs font-bold shrink-0"
           title="Zoom In"
         >
           <ZoomIn className="w-3.5 h-3.5" />
@@ -324,7 +328,7 @@ export const UnifiedBottomBar: React.FC<UnifiedBottomBarProps> = ({
 
         <button
           onClick={onZoomFit}
-          className="h-7 px-1.5 rounded bg-slate-800/80 hover:bg-slate-700 text-cyan-300 flex items-center gap-0.5 text-[10px] font-semibold active:scale-95 transition-all shrink-0 ml-0.5"
+          className="h-6.5 px-1.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-cyan-300 flex items-center justify-center gap-0.5 text-[10px] font-semibold active:scale-95 transition-all shrink-0 ml-0.5"
           title="Fit whole project to screen"
         >
           <Maximize2 className="w-3 h-3" />
