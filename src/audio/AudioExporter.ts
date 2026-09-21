@@ -384,6 +384,21 @@ export async function renderProjectOffline(
 }
 
 /**
+ * Converts an ArrayBuffer to a base64 string safely without stack overflow.
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  const step = 8192;
+  for (let i = 0; i < len; i += step) {
+    const chunk = bytes.subarray(i, Math.min(i + step, len));
+    binary += String.fromCharCode.apply(null, chunk as any);
+  }
+  return btoa(binary);
+}
+
+/**
  * Converts a Blob to a base64 Data URL string.
  */
 export function blobToBase64(blob: Blob): Promise<string> {
@@ -398,16 +413,84 @@ export function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
+ * Checks whether the app is running in native Android app with AndroidBridge.
+ */
+export function isAndroidApp(): boolean {
+  return typeof (window as any).AndroidBridge !== 'undefined';
+}
+
+/**
+ * Prompts native Android SAF file chooser to save audio to any custom folder.
+ */
+export function promptSaveAsToDevice(): boolean {
+  const bridge = (window as any).AndroidBridge;
+  if (bridge && typeof bridge.promptSaveAs === 'function') {
+    return bridge.promptSaveAs();
+  }
+  return false;
+}
+
+/**
  * Downloads or saves a Blob to the user's device.
  * Detects AndroidBridge for native Android storage (Music/AudioEditor),
- * falling back to standard browser file download.
+ * using streaming chunks for 100% reliability and zero memory crashes.
  */
 export async function saveAudioFileToDevice(
   blob: Blob,
-  filename: string
+  filename: string,
+  onSaveProgress?: (progress: number) => void
 ): Promise<{ success: boolean; path?: string; message: string }> {
-  // Check if running inside Android App with AndroidBridge
   const bridge = (window as any).AndroidBridge;
+
+  // 1. Native Android Storage via AndroidBridge with chunked streaming
+  if (
+    bridge &&
+    typeof bridge.startSave === 'function' &&
+    typeof bridge.writeChunk === 'function' &&
+    typeof bridge.finishSave === 'function'
+  ) {
+    try {
+      const mimeType = blob.type || 'audio/wav';
+      const initOk = bridge.startSave(filename, mimeType);
+      if (!initOk) {
+        throw new Error('Android storage initialization failed');
+      }
+
+      const totalSize = blob.size;
+      const CHUNK_SIZE = 128 * 1024; // 128 KB safe chunk size
+      let offset = 0;
+
+      while (offset < totalSize) {
+        const slice = blob.slice(offset, Math.min(offset + CHUNK_SIZE, totalSize));
+        const arrayBuffer = await slice.arrayBuffer();
+        const base64Chunk = arrayBufferToBase64(arrayBuffer);
+        const written = bridge.writeChunk(base64Chunk);
+        if (!written) {
+          if (typeof bridge.cancelSave === 'function') bridge.cancelSave();
+          throw new Error('Failed to write audio chunk to device storage');
+        }
+        offset += CHUNK_SIZE;
+        if (onSaveProgress) {
+          onSaveProgress(Math.min(1.0, offset / totalSize));
+        }
+      }
+
+      const finalPath = bridge.finishSave();
+      if (finalPath && !finalPath.toLowerCase().startsWith('error')) {
+        return {
+          success: true,
+          path: finalPath,
+          message: `Saved to device: ${finalPath}`,
+        };
+      } else {
+        throw new Error(finalPath || 'Storage save error');
+      }
+    } catch (err: any) {
+      console.warn('AndroidBridge chunked save error, trying single-call fallback:', err);
+    }
+  }
+
+  // 2. Single-shot AndroidBridge fallback
   if (bridge && typeof bridge.saveAudioFile === 'function') {
     try {
       const base64Data = await blobToBase64(blob);
@@ -420,11 +503,11 @@ export async function saveAudioFileToDevice(
         };
       }
     } catch (err: any) {
-      console.warn('AndroidBridge.saveAudioFile failed, using browser download:', err);
+      console.warn('AndroidBridge.saveAudioFile failed:', err);
     }
   }
 
-  // Browser download fallback
+  // 3. Browser download fallback
   try {
     downloadBlob(blob, filename);
     return {
@@ -469,6 +552,18 @@ export async function shareAudioFile(
   title: string = 'Exported Audio Master'
 ): Promise<boolean> {
   const bridge = (window as any).AndroidBridge;
+
+  // 1. Android Native Share Sheet for already saved file
+  if (bridge && typeof bridge.shareLastExported === 'function') {
+    try {
+      const shared = bridge.shareLastExported();
+      if (shared) return true;
+    } catch (err) {
+      console.warn('AndroidBridge.shareLastExported failed:', err);
+    }
+  }
+
+  // 2. Android Native Share Sheet with data
   if (bridge && typeof bridge.shareAudioFile === 'function') {
     try {
       const base64Data = await blobToBase64(blob);
@@ -479,7 +574,7 @@ export async function shareAudioFile(
     }
   }
 
-  // Web Share API
+  // 3. Web Share API
   if (typeof navigator !== 'undefined' && navigator.canShare) {
     try {
       const file = new File([blob], filename, { type: blob.type || 'audio/wav' });

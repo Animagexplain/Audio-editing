@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Track, EffectsConfig } from '../../types';
-import { Download, Share2, FileAudio, CheckCircle2, AlertCircle, Loader2, Play, Volume2 } from 'lucide-react';
+import { Download, Share2, FileAudio, CheckCircle2, AlertCircle, Loader2, Play, Volume2, FolderDown } from 'lucide-react';
 import {
   ExportFormat,
   isM4aSupported,
@@ -14,6 +14,8 @@ import {
   audioBufferToFlac,
   saveAudioFileToDevice,
   shareAudioFile,
+  promptSaveAsToDevice,
+  isAndroidApp,
   downloadBlob,
 } from '../../audio/AudioExporter';
 import { AudioEngine } from '../../audio/AudioEngine';
@@ -116,11 +118,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         filename += '.wav';
       }
 
-      setProgress(0.9);
-      setStatusMessage('Saving audio file to storage...');
+      setProgress(0.85);
+      setStatusMessage('Saving audio to device storage...');
 
       // 2. Automatically save audio to device (Android MediaStore / Music folder or browser Downloads)
-      const saveRes = await saveAudioFileToDevice(blob, filename);
+      const saveRes = await saveAudioFileToDevice(blob, filename, (saveP) => {
+        setProgress(0.85 + saveP * 0.14);
+      });
 
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
@@ -278,8 +282,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   Size: {(exportedBlob.size / (1024 * 1024)).toFixed(2)} MB • Saved to device storage
                 </p>
                 {saveLocation && (
-                  <p className="text-slate-400 text-[10px] italic">
-                    Location: {saveLocation}
+                  <p className="text-emerald-300/90 text-[11px] font-mono bg-emerald-950/40 px-2 py-1 rounded border border-emerald-800/40 break-all">
+                    📁 Saved to: {saveLocation}
                   </p>
                 )}
               </div>
@@ -297,32 +301,44 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             )}
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className={`grid ${isAndroidApp() ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1`}>
               <button
                 onClick={handleShare}
-                className="min-h-[44px] px-3 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs shadow-md shadow-cyan-900/30"
+                className="min-h-[44px] px-2 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs shadow-md shadow-cyan-900/30"
+                title="Share via WhatsApp, Drive, Files"
               >
-                <Share2 className="w-4 h-4" />
-                Share Audio File
+                <Share2 className="w-4 h-4 shrink-0" />
+                <span>Share</span>
               </button>
+
+              {isAndroidApp() && (
+                <button
+                  onClick={() => promptSaveAsToDevice()}
+                  className="min-h-[44px] px-2 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs shadow-md shadow-indigo-900/30"
+                  title="Choose exact folder in device"
+                >
+                  <FolderDown className="w-4 h-4 shrink-0" />
+                  <span>Choose Folder</span>
+                </button>
+              )}
 
               {previewUrl ? (
                 <a
                   href={previewUrl}
                   download={exportedFilename}
                   onClick={handleDownloadAgain}
-                  className="min-h-[44px] px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs border border-slate-700 shadow-xs text-center"
+                  className="min-h-[44px] px-2 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs border border-slate-700 shadow-xs text-center"
                 >
-                  <Download className="w-4 h-4" />
-                  Download / Save
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span>Save Again</span>
                 </a>
               ) : (
                 <button
                   onClick={handleDownloadAgain}
-                  className="min-h-[44px] px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs border border-slate-700 shadow-xs"
+                  className="min-h-[44px] px-2 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs border border-slate-700 shadow-xs"
                 >
-                  <Download className="w-4 h-4" />
-                  Download / Save
+                  <Download className="w-4 h-4 shrink-0" />
+                  <span>Save Again</span>
                 </button>
               )}
             </div>

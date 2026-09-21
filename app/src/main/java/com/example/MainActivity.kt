@@ -57,6 +57,39 @@ import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
 
+    private var pendingSaveFile: File? = null
+    private val createDocumentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data?.data != null) {
+            val destUri = result.data?.data!!
+            val fileToSave = pendingSaveFile
+            if (fileToSave != null && fileToSave.exists()) {
+                try {
+                    contentResolver.openOutputStream(destUri)?.use { os ->
+                        fileToSave.inputStream().use { input ->
+                            input.copyTo(os)
+                        }
+                        os.flush()
+                    }
+                    Toast.makeText(this, "Saved: ${fileToSave.name}", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Save error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    fun promptSaveAs(file: File, mimeType: String) {
+        pendingSaveFile = file
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeType
+            putExtra(Intent.EXTRA_TITLE, file.name)
+        }
+        createDocumentLauncher.launch(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -64,7 +97,7 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
 
         setContent {
-            AudioEditorAppScreen()
+            AudioEditorAppScreen(activity = this)
         }
     }
 
@@ -84,7 +117,7 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun AudioEditorAppScreen() {
+fun AudioEditorAppScreen(activity: MainActivity) {
     val context = LocalContext.current
     var hasMicPermission by remember {
         mutableStateOf(
@@ -191,9 +224,7 @@ fun AudioEditorAppScreen() {
                         }
                     }
 
-                    if (ctx is Activity) {
-                        addJavascriptInterface(AndroidAudioBridge(ctx), "AndroidBridge")
-                    }
+                    addJavascriptInterface(AndroidAudioBridge(activity), "AndroidBridge")
 
                     loadUrl("file:///android_asset/index.html")
                 }
@@ -205,7 +236,13 @@ fun AudioEditorAppScreen() {
     }
 }
 
-class AndroidAudioBridge(private val activity: Activity) {
+class AndroidAudioBridge(private val activity: MainActivity) {
+
+    private var currentTempFile: File? = null
+    private var currentFileOutputStream: FileOutputStream? = null
+    private var currentFileName: String = "export.wav"
+    private var currentMimeType: String = "audio/wav"
+    private var lastExportedFile: File? = null
 
     @JavascriptInterface
     fun isAvailable(): Boolean {
@@ -213,79 +250,144 @@ class AndroidAudioBridge(private val activity: Activity) {
     }
 
     @JavascriptInterface
-    fun saveAudioFile(base64Data: String, mimeType: String, fileName: String): String {
+    fun startSave(fileName: String, mimeType: String): Boolean {
         return try {
-            val cleanBase64 = if (base64Data.contains(",")) {
-                base64Data.substringAfter(",")
-            } else {
-                base64Data
-            }
-            val audioBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+            currentFileOutputStream?.close()
+            currentFileOutputStream = null
 
+            val cacheDir = File(activity.cacheDir, "audio_exports").apply {
+                if (!exists()) mkdirs()
+            }
+            val tempFile = File(cacheDir, "temp_${System.currentTimeMillis()}_$fileName")
+            currentTempFile = tempFile
+            currentFileName = fileName
+            currentMimeType = mimeType
+            currentFileOutputStream = FileOutputStream(tempFile)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun writeChunk(chunkBase64: String): Boolean {
+        return try {
+            val fos = currentFileOutputStream ?: return false
+            val clean = if (chunkBase64.contains(",")) chunkBase64.substringAfter(",") else chunkBase64
+            val bytes = Base64.decode(clean, Base64.DEFAULT)
+            fos.write(bytes)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun cancelSave() {
+        try {
+            currentFileOutputStream?.close()
+            currentFileOutputStream = null
+            currentTempFile?.delete()
+            currentTempFile = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @JavascriptInterface
+    fun finishSave(): String {
+        return try {
+            currentFileOutputStream?.flush()
+            currentFileOutputStream?.close()
+            currentFileOutputStream = null
+
+            val tempFile = currentTempFile ?: return "error: No file written"
+            if (!tempFile.exists() || tempFile.length() == 0L) {
+                return "error: Empty file"
+            }
+
+            var savedLocation = ""
+
+            // 1. Android 10+ (API 29+) MediaStore entry
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // MediaStore API (Android 10+)
+                val resolver = activity.contentResolver
                 val contentValues = ContentValues().apply {
-                    put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                    put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
+                    put(MediaStore.Audio.Media.DISPLAY_NAME, currentFileName)
+                    put(MediaStore.Audio.Media.TITLE, currentFileName.substringBeforeLast("."))
+                    put(MediaStore.Audio.Media.MIME_TYPE, currentMimeType)
                     put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/AudioEditor")
                     put(MediaStore.Audio.Media.IS_PENDING, 1)
                 }
 
-                val resolver = activity.contentResolver
-                val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
-                    ?: resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                var uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri == null) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Downloads.DISPLAY_NAME, currentFileName)
+                    contentValues.put(MediaStore.Downloads.MIME_TYPE, currentMimeType)
+                    contentValues.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/AudioEditor")
+                    contentValues.put(MediaStore.Downloads.IS_PENDING, 1)
+                    uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                }
 
                 if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(audioBytes)
-                        outputStream.flush()
+                    resolver.openOutputStream(uri)?.use { os ->
+                        tempFile.inputStream().use { input -> input.copyTo(os) }
+                        os.flush()
                     }
                     contentValues.clear()
                     contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
                     resolver.update(uri, contentValues, null, null)
-
-                    activity.runOnUiThread {
-                        Toast.makeText(
-                            activity,
-                            "Audio exported: Music/AudioEditor/$fileName",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    "Music/AudioEditor/$fileName"
-                } else {
-                    saveToInternalFallback(audioBytes, fileName)
+                    savedLocation = "Music/AudioEditor/$currentFileName"
                 }
-            } else {
-                // Android 9 and below
-                val musicDir = File(
+            }
+
+            // 2. Direct File storage in Music or Download directory
+            try {
+                val publicMusicDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
                     "AudioEditor"
                 )
-                if (!musicDir.exists()) {
-                    musicDir.mkdirs()
+                if (!publicMusicDir.exists()) {
+                    publicMusicDir.mkdirs()
                 }
-                val destFile = File(musicDir, fileName)
-                FileOutputStream(destFile).use { fos ->
-                    fos.write(audioBytes)
-                    fos.flush()
-                }
+                val publicFile = File(publicMusicDir, currentFileName)
+                tempFile.copyTo(publicFile, overwrite = true)
+                lastExportedFile = publicFile
 
                 MediaScannerConnection.scanFile(
                     activity,
-                    arrayOf(destFile.absolutePath),
-                    arrayOf(mimeType),
+                    arrayOf(publicFile.absolutePath),
+                    arrayOf(currentMimeType),
                     null
                 )
-
-                activity.runOnUiThread {
-                    Toast.makeText(
-                        activity,
-                        "Audio saved to: ${destFile.name}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                if (savedLocation.isEmpty()) {
+                    savedLocation = publicFile.absolutePath
                 }
-                destFile.absolutePath
+            } catch (e: Exception) {
+                // Secondary fallback: App-specific external Music dir
+                val appMusicDir = activity.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
+                    ?: activity.filesDir
+                val fallbackFile = File(appMusicDir, currentFileName)
+                tempFile.copyTo(fallbackFile, overwrite = true)
+                lastExportedFile = fallbackFile
+                if (savedLocation.isEmpty()) {
+                    savedLocation = fallbackFile.absolutePath
+                }
             }
+
+            val finalLocation = savedLocation.ifEmpty { "Music/AudioEditor/$currentFileName" }
+
+            activity.runOnUiThread {
+                Toast.makeText(
+                    activity,
+                    "Audio saved: Music/AudioEditor/$currentFileName",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+            finalLocation
         } catch (e: Exception) {
             e.printStackTrace()
             activity.runOnUiThread {
@@ -299,47 +401,68 @@ class AndroidAudioBridge(private val activity: Activity) {
         }
     }
 
-    private fun saveToInternalFallback(bytes: ByteArray, fileName: String): String {
-        val appMusicDir = activity.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
-            ?: activity.filesDir
-        val destFile = File(appMusicDir, fileName)
-        FileOutputStream(destFile).use { fos ->
-            fos.write(bytes)
-            fos.flush()
-        }
-        activity.runOnUiThread {
-            Toast.makeText(
-                activity,
-                "Saved to: ${destFile.name}",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        return destFile.absolutePath
+    @JavascriptInterface
+    fun saveAudioFile(base64Data: String, mimeType: String, fileName: String): String {
+        startSave(fileName, mimeType)
+        writeChunk(base64Data)
+        return finishSave()
     }
 
     @JavascriptInterface
-    fun shareAudioFile(base64Data: String, mimeType: String, fileName: String) {
-        try {
-            val cleanBase64 = if (base64Data.contains(",")) {
-                base64Data.substringAfter(",")
-            } else {
-                base64Data
-            }
-            val audioBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
-
-            val cacheFolder = File(activity.cacheDir, "audio_exports").apply {
-                if (!exists()) mkdirs()
-            }
-            val exportFile = File(cacheFolder, fileName)
-            FileOutputStream(exportFile).use { fos ->
-                fos.write(audioBytes)
-                fos.flush()
+    fun shareLastExported(): Boolean {
+        return try {
+            val fileToShare = lastExportedFile ?: currentTempFile
+            if (fileToShare == null || !fileToShare.exists()) {
+                activity.runOnUiThread {
+                    Toast.makeText(activity, "No exported file to share", Toast.LENGTH_SHORT).show()
+                }
+                return false
             }
 
             val fileUri = FileProvider.getUriForFile(
                 activity,
                 "${activity.packageName}.fileprovider",
-                exportFile
+                fileToShare
+            )
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = currentMimeType
+                putExtra(Intent.EXTRA_STREAM, fileUri)
+                putExtra(Intent.EXTRA_SUBJECT, fileToShare.name)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            activity.startActivity(Intent.createChooser(shareIntent, "Share Audio via"))
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            activity.runOnUiThread {
+                Toast.makeText(
+                    activity,
+                    "Share error: ${e.localizedMessage}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun shareAudioFile(base64Data: String, mimeType: String, fileName: String) {
+        try {
+            startSave(fileName, mimeType)
+            writeChunk(base64Data)
+            currentFileOutputStream?.flush()
+            currentFileOutputStream?.close()
+            currentFileOutputStream = null
+
+            val tempFile = currentTempFile ?: return
+            lastExportedFile = tempFile
+
+            val fileUri = FileProvider.getUriForFile(
+                activity,
+                "${activity.packageName}.fileprovider",
+                tempFile
             )
 
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -353,12 +476,26 @@ class AndroidAudioBridge(private val activity: Activity) {
         } catch (e: Exception) {
             e.printStackTrace()
             activity.runOnUiThread {
-                Toast.makeText(
-                    activity,
-                    "Share error: ${e.localizedMessage ?: "Could not share file"}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(activity, "Share error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    @JavascriptInterface
+    fun promptSaveAs(): Boolean {
+        return try {
+            val fileToSave = lastExportedFile ?: currentTempFile
+            if (fileToSave != null && fileToSave.exists()) {
+                activity.runOnUiThread {
+                    activity.promptSaveAs(fileToSave, currentMimeType)
+                }
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <cache-path name="cache_audio" path="audio_exports" />
-    <external-path name="external_music" path="Music" />
-    <external-path name="external_download" path="Download" />
+    <cache-path name="cache_audio" path="." />
+    <files-path name="files_audio" path="." />
+    <external-files-path name="external_files" path="." />
+    <external-cache-path name="external_cache" path="." />
+    <external-path name="external_storage" path="." />
 </paths>
