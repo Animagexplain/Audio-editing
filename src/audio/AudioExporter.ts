@@ -228,60 +228,71 @@ export function audioBufferToMp3(
   bitrateKbps: number = 192,
   onProgress?: (progress: number) => void
 ): Blob {
-  const numChannels = Math.min(2, buffer.numberOfChannels);
-  const sampleRate = buffer.sampleRate;
-  const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitrateKbps);
-  const mp3Data: Int8Array[] = [];
-
-  const left = buffer.getChannelData(0);
-  const right = numChannels > 1 ? buffer.getChannelData(1) : left;
-  const totalSamples = left.length;
-
-  const chunkSize = 1152; // standard MP3 frame size
-  const leftInt16 = new Int16Array(chunkSize);
-  const rightInt16 = new Int16Array(chunkSize);
-
-  let processed = 0;
-  while (processed < totalSamples) {
-    const currentChunk = Math.min(chunkSize, totalSamples - processed);
-
-    for (let i = 0; i < currentChunk; i++) {
-      const idx = processed + i;
-      const l = Math.max(-1, Math.min(1, left[idx]));
-      const r = Math.max(-1, Math.min(1, right[idx]));
-      leftInt16[i] = l < 0 ? l * 0x8000 : l * 0x7fff;
-      rightInt16[i] = r < 0 ? r * 0x8000 : r * 0x7fff;
+  try {
+    const EncoderClass = (lamejs as any)?.Mp3Encoder || (lamejs as any)?.default?.Mp3Encoder;
+    if (!EncoderClass) {
+      console.warn('lamejs Mp3Encoder not available, fallback to WAV');
+      return audioBufferToWav(buffer);
     }
 
-    // Zero out remainder of final chunk if needed
-    for (let i = currentChunk; i < chunkSize; i++) {
-      leftInt16[i] = 0;
-      rightInt16[i] = 0;
+    const numChannels = Math.min(2, buffer.numberOfChannels);
+    const sampleRate = buffer.sampleRate;
+    const mp3Encoder = new EncoderClass(numChannels, sampleRate, bitrateKbps);
+    const mp3Data: Int8Array[] = [];
+
+    const left = buffer.getChannelData(0);
+    const right = numChannels > 1 ? buffer.getChannelData(1) : left;
+    const totalSamples = left.length;
+
+    const chunkSize = 1152; // standard MP3 frame size
+    const leftInt16 = new Int16Array(chunkSize);
+    const rightInt16 = new Int16Array(chunkSize);
+
+    let processed = 0;
+    while (processed < totalSamples) {
+      const currentChunk = Math.min(chunkSize, totalSamples - processed);
+
+      for (let i = 0; i < currentChunk; i++) {
+        const idx = processed + i;
+        const l = Math.max(-1, Math.min(1, left[idx]));
+        const r = Math.max(-1, Math.min(1, right[idx]));
+        leftInt16[i] = l < 0 ? l * 0x8000 : l * 0x7fff;
+        rightInt16[i] = r < 0 ? r * 0x8000 : r * 0x7fff;
+      }
+
+      // Zero out remainder of final chunk if needed
+      for (let i = currentChunk; i < chunkSize; i++) {
+        leftInt16[i] = 0;
+        rightInt16[i] = 0;
+      }
+
+      let mp3buf: Int8Array;
+      if (numChannels === 1) {
+        mp3buf = mp3Encoder.encodeBuffer(leftInt16);
+      } else {
+        mp3buf = mp3Encoder.encodeBuffer(leftInt16, rightInt16);
+      }
+
+      if (mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+      }
+
+      processed += currentChunk;
+      if (onProgress) {
+        onProgress(Math.min(0.99, processed / totalSamples));
+      }
     }
 
-    let mp3buf: Int8Array;
-    if (numChannels === 1) {
-      mp3buf = mp3Encoder.encodeBuffer(leftInt16);
-    } else {
-      mp3buf = mp3Encoder.encodeBuffer(leftInt16, rightInt16);
+    const endBuf = mp3Encoder.flush();
+    if (endBuf.length > 0) {
+      mp3Data.push(endBuf);
     }
 
-    if (mp3buf.length > 0) {
-      mp3Data.push(mp3buf);
-    }
-
-    processed += currentChunk;
-    if (onProgress) {
-      onProgress(Math.min(0.99, processed / totalSamples));
-    }
+    return new Blob(mp3Data, { type: 'audio/mp3' });
+  } catch (err) {
+    console.error('MP3 encoding error, falling back to WAV:', err);
+    return audioBufferToWav(buffer);
   }
-
-  const endBuf = mp3Encoder.flush();
-  if (endBuf.length > 0) {
-    mp3Data.push(endBuf);
-  }
-
-  return new Blob(mp3Data, { type: 'audio/mp3' });
 }
 
 /**
@@ -332,6 +343,11 @@ export async function renderProjectOffline(
       const source = offlineCtx.createBufferSource();
       source.buffer = buffer;
 
+      // Apply clip speed if modified
+      if (clip.speed && clip.speed > 0 && clip.speed !== 1.0) {
+        source.playbackRate.setValueAtTime(clip.speed, 0);
+      }
+
       // Clip Gain & Fades
       const clipGain = offlineCtx.createGain();
       clipGain.gain.setValueAtTime(clip.volume ?? 1.0, 0);
@@ -368,36 +384,116 @@ export async function renderProjectOffline(
 }
 
 /**
+ * Converts a Blob to a base64 Data URL string.
+ */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Downloads or saves a Blob to the user's device.
+ * Detects AndroidBridge for native Android storage (Music/AudioEditor),
+ * falling back to standard browser file download.
+ */
+export async function saveAudioFileToDevice(
+  blob: Blob,
+  filename: string
+): Promise<{ success: boolean; path?: string; message: string }> {
+  // Check if running inside Android App with AndroidBridge
+  const bridge = (window as any).AndroidBridge;
+  if (bridge && typeof bridge.saveAudioFile === 'function') {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const result = bridge.saveAudioFile(base64Data, blob.type || 'audio/wav', filename);
+      if (result && !result.toLowerCase().startsWith('error')) {
+        return {
+          success: true,
+          path: result,
+          message: `Saved to device: ${result}`,
+        };
+      }
+    } catch (err: any) {
+      console.warn('AndroidBridge.saveAudioFile failed, using browser download:', err);
+    }
+  }
+
+  // Browser download fallback
+  try {
+    downloadBlob(blob, filename);
+    return {
+      success: true,
+      path: filename,
+      message: `Downloaded: ${filename}`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Download failed',
+    };
+  }
+}
+
+/**
  * Downloads a Blob as a file in the browser.
  */
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+  a.style.display = 'none';
   a.href = url;
   a.download = filename;
+  a.setAttribute('download', filename);
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  setTimeout(() => {
+    try {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {}
+  }, 4000);
 }
 
 /**
- * Shares the audio file via Web Share API, falling back to download.
+ * Shares the audio file via native Android share sheet or Web Share API, falling back to download.
  */
-export async function shareAudioFile(blob: Blob, filename: string, title: string = 'Audio Track'): Promise<boolean> {
-  const file = new File([blob], filename, { type: blob.type });
-
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+export async function shareAudioFile(
+  blob: Blob,
+  filename: string,
+  title: string = 'Exported Audio Master'
+): Promise<boolean> {
+  const bridge = (window as any).AndroidBridge;
+  if (bridge && typeof bridge.shareAudioFile === 'function') {
     try {
-      await navigator.share({
-        files: [file],
-        title,
-        text: 'Edited with Audio Editor'
-      });
+      const base64Data = await blobToBase64(blob);
+      bridge.shareAudioFile(base64Data, blob.type || 'audio/wav', filename);
       return true;
+    } catch (err) {
+      console.warn('AndroidBridge.shareAudioFile failed, trying Web Share:', err);
+    }
+  }
+
+  // Web Share API
+  if (typeof navigator !== 'undefined' && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: blob.type || 'audio/wav' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title,
+          text: 'Edited with Audio Editor',
+        });
+        return true;
+      }
     } catch (err: any) {
-      if (err.name === 'AbortError') return true; // User cancelled share dialog
-      console.warn('Share API failed, falling back to download', err);
+      if (err.name === 'AbortError') return true; // User dismissed
+      console.warn('Web Share API failed:', err);
     }
   }
 
